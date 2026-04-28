@@ -1,7 +1,33 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { COLORS, RARITY, initials, StarRow } from './constants.jsx'
 import { getAgentImage } from './agentImages'
-import { fetchIssues } from './api/agentService'
+import { fetchIssues, fetchIssueById, fetchIssueComments, fetchIssueDocuments } from './api/agentService'
+
+/* ── Issue status colors (same as Issues page) ────────────────────── */
+
+const ISSUE_STATUS_META = {
+  backlog:    { colour: '#9ca3af', label: 'Backlog' },
+  todo:       { colour: '#3b82f6', label: 'Todo' },
+  inprogress: { colour: '#eab308', label: 'In Progress' },
+  inreview:   { colour: '#8b5cf6', label: 'In Review' },
+  done:       { colour: '#4ade80', label: 'Done' },
+  cancelled:  { colour: '#6b7280', label: 'Cancelled' },
+  blocked:    { colour: '#ef4444', label: 'Blocked' },
+}
+
+function resolveIssueStatus(issue) {
+  const raw = (issue.status ?? '').toString().toLowerCase().replace(/[-_\s]/g, '')
+  if (ISSUE_STATUS_META[raw]) return ISSUE_STATUS_META[raw]
+  if (raw.includes('progress')) return ISSUE_STATUS_META.inprogress
+  if (raw.includes('review'))   return ISSUE_STATUS_META.inreview
+  if (raw.includes('block'))    return ISSUE_STATUS_META.blocked
+  if (raw.includes('cancel'))   return ISSUE_STATUS_META.cancelled
+  if (raw === 'done' || raw === 'closed' || raw === 'complete') return ISSUE_STATUS_META.done
+  if (raw === 'open' || raw === 'new') return ISSUE_STATUS_META.todo
+  return { colour: '#9ca3af', label: issue.status || 'Unknown' }
+}
 
 /* ── Helpers ───────────────────────────────────────────────────────── */
 
@@ -208,17 +234,197 @@ function MiniAgentCard({ agent, onOpen }) {
   )
 }
 
+/* ── Issue Detail Popup ─────────────────────────────────────────────── */
+
+function IssuePopup({ issue, onClose, agents }) {
+  const [detail, setDetail] = useState(null)
+  const [comments, setComments] = useState([])
+  const [documents, setDocuments] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!issue?.id) return
+    let cancelled = false
+    setLoading(true)
+
+    Promise.all([
+      fetchIssueById(issue.id),
+      fetchIssueComments(issue.id),
+      fetchIssueDocuments(issue.id),
+    ]).then(([issueData, commentsData, documentsData]) => {
+      if (!cancelled) {
+        setDetail(issueData)
+        setComments(commentsData)
+        setDocuments(documentsData)
+        setLoading(false)
+      }
+    }).catch(() => {
+      if (!cancelled) setLoading(false)
+    })
+
+    return () => { cancelled = true }
+  }, [issue?.id])
+
+  // Close on Escape
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const src = detail || issue
+  const resolvedStatus = resolveIssueStatus(src)
+  const identifier = src.identifier || src.key || src.number || `#${issue.id || ''}`
+  const title = src.title || src.name || src.summary || 'Untitled'
+
+  // Find agent name
+  const agentId = src.assigneeAgentId || issue.assigneeAgentId
+  const agentName = agents.find((a) =>
+    a.apiData?.id === agentId || a.apiData?.uuid === agentId
+  )?.name || null
+
+  // Get AI response from comments (first comment with body)
+  const aiComment = comments.length > 0 ? comments[0] : null
+  const commentBody = aiComment?.body || null
+
+  // Fallback from detail fields
+  const fallbackResponse = detail
+    ? (detail.feedback || detail.result || detail.output || detail.response || detail.answer ||
+       detail.body || detail.resolution || detail.aiResponse || detail.message || null)
+    : null
+
+  const hasComment = !!commentBody
+  const hasDocs = documents.length > 0
+  const hasFallback = !!fallbackResponse
+  const hasDescription = !!issue.description
+  const hasAnyContent = hasComment || hasDocs || hasFallback || hasDescription
+
+  return (
+    <div className="issue-popup-overlay" onClick={onClose}>
+      <div className="issue-popup" onClick={(e) => e.stopPropagation()}>
+        <div className="issue-popup-header">
+          <div>
+            <span className="issue-popup-id mono">{identifier}</span>
+            <span className="issue-popup-status" style={{ background: `${resolvedStatus.colour}22`, color: resolvedStatus.colour }}>
+              {resolvedStatus.label}
+            </span>
+          </div>
+          <button className="issue-popup-close" onClick={onClose} aria-label="Close">×</button>
+        </div>
+        <h3 className="issue-popup-title">{title}</h3>
+
+        <div className="issue-popup-meta">
+          {agentName && (
+            <span className="issue-popup-meta-item">
+              <span className="issue-popup-meta-label">Agent</span>
+              <span>{agentName}</span>
+            </span>
+          )}
+          {(src.priority || issue.priority) && (
+            <span className="issue-popup-meta-item">
+              <span className="issue-popup-meta-label">Priority</span>
+              <span style={{ textTransform: 'capitalize' }}>{src.priority || issue.priority}</span>
+            </span>
+          )}
+          {(src.createdAt || src.startedAt || issue.createdAt || issue.started_at) && (
+            <span className="issue-popup-meta-item">
+              <span className="issue-popup-meta-label">Created</span>
+              <span className="mono">{new Date(src.createdAt || src.startedAt || issue.createdAt || issue.started_at).toLocaleString()}</span>
+            </span>
+          )}
+          {(src.completedAt || src.completed_at || issue.completedAt || issue.completed_at) && (
+            <span className="issue-popup-meta-item">
+              <span className="issue-popup-meta-label">Completed</span>
+              <span className="mono">{new Date(src.completedAt || src.completed_at || issue.completedAt || issue.completed_at).toLocaleString()}</span>
+            </span>
+          )}
+        </div>
+
+        <div className="issue-popup-divider" />
+
+        <div className="issue-popup-body">
+          {loading ? (
+            <div className="issue-popup-loading">
+              <span className="issue-popup-spinner" />
+              Loading AI response…
+            </div>
+          ) : hasAnyContent ? (
+            <>
+              {/* Comment (AI response) */}
+              {hasComment && (
+                <div className="issue-popup-response">
+                  <div className="issue-popup-response-label">
+                    AI Response
+                    {aiComment.createdAt && (
+                      <span className="issue-popup-response-time">
+                        {new Date(aiComment.createdAt).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="issue-popup-response-content">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{commentBody}</ReactMarkdown>
+                  </div>
+                </div>
+              )}
+
+              {/* Documents (plans, reports, etc.) */}
+              {hasDocs && documents.map((doc, idx) => (
+                <div className="issue-popup-response" key={doc.id || idx}>
+                  <div className="issue-popup-response-label">
+                    📄 {doc.title || doc.key || `Document ${idx + 1}`}
+                    {doc.format && (
+                      <span className="issue-popup-response-time">{doc.format}</span>
+                    )}
+                  </div>
+                  <div className="issue-popup-response-content">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{doc.body || ''}</ReactMarkdown>
+                  </div>
+                </div>
+              ))}
+
+              {/* Fallback if no comment or docs */}
+              {!hasComment && !hasDocs && hasFallback && (
+                <div className="issue-popup-response">
+                  <div className="issue-popup-response-label">AI Response</div>
+                  <div className="issue-popup-response-content">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{fallbackResponse}</ReactMarkdown>
+                  </div>
+                </div>
+              )}
+
+              {/* Description as last resort */}
+              {!hasComment && !hasDocs && !hasFallback && hasDescription && (
+                <div className="issue-popup-response">
+                  <div className="issue-popup-response-label">Description</div>
+                  <div className="issue-popup-response-content">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{issue.description}</ReactMarkdown>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="issue-popup-empty">
+              No AI response available yet.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Dashboard (Overview / Command Center) ─────────────────────────── */
 
 export default function MissionControl({ agents, onOpenAgent, loading, error, lastUpdated, onRefresh }) {
   const [issues, setIssues] = useState([])
   const [issuesLoading, setIssuesLoading] = useState(false)
+  const [selectedIssue, setSelectedIssue] = useState(null)
   const [issuesError, setIssuesError] = useState(null)
   const [issuesUpdated, setIssuesUpdated] = useState(null)
   const issuesTimerRef = useRef()
 
-  const onlineCount = agents.filter(isOnline).length
-  const pausedCount = agents.filter((a) => !!a.apiData?.pausedAt).length
+  const onlineCount = agents.filter((a) => a.status === 'running').length
+  const pausedCount = agents.filter((a) => a.status === 'paused').length
   const workingCount = agents.filter((a) => a.status === 'working').length
   const totalBudget = agents.reduce((sum, a) => sum + (a.apiData?.budgetMonthlyCents || 0), 0)
   const totalSpent = agents.reduce((sum, a) => sum + (a.apiData?.spentMonthlyCents || 0), 0)
@@ -246,8 +452,34 @@ export default function MissionControl({ agents, onOpenAgent, loading, error, la
   }, [refreshIssues])
 
   // Count issues by status
+  const inProgressCount = issues.filter((i) => {
+    const s = (i.status ?? '').toString().toLowerCase().replace(/[-_\s]/g, '')
+    return s === 'inprogress' || s === 'in_progress' || s.includes('progress')
+  }).length
   const openIssues = issues.filter((i) => i.status === 'open' || !i.status).length
   const closedIssues = issues.filter((i) => i.status === 'closed' || i.status === 'done').length
+
+  // Fetch pending approvals
+  const [pendingApprovals, setPendingApprovals] = useState(0)
+  useEffect(() => {
+    let cancelled = false
+    async function loadApprovals() {
+      try {
+        const res = await fetch(
+          '/api/companies/39e68b6f-0d66-4033-9899-e6b94474bcfe/approvals?status=pending',
+          { headers: { Authorization: 'Bearer pcp_c4efebee09b45a3119c95375af0c0f3130221ea259d08256', 'Content-Type': 'application/json' } }
+        )
+        if (!res.ok) return
+        const data = await res.json()
+        if (cancelled) return
+        const list = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : [])
+        setPendingApprovals(list.length)
+      } catch { /* ignore */ }
+    }
+    loadApprovals()
+    const id = setInterval(loadApprovals, 3000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [])
 
   // Mock chart data (14 days)
   const runData = [0,0,0,0,0,0,0,0,0,0,0,12,16,9]
@@ -304,8 +536,8 @@ export default function MissionControl({ agents, onOpenAgent, loading, error, la
         />
         <StatTile
           label="Tasks In Progress"
-          value={workingCount}
-          sub={`${agents.filter(a => a.status === 'thinking').length} thinking · ${agents.filter(a => a.status === 'idle').length} idle`}
+          value={inProgressCount}
+          sub={`${issues.length} total issues · ${closedIssues} done`}
           icon="▷"
           tone="gold"
         />
@@ -318,29 +550,14 @@ export default function MissionControl({ agents, onOpenAgent, loading, error, la
         />
         <StatTile
           label="Pending Approvals"
-          value={pausedCount}
-          sub={pausedCount > 0 ? 'Awaiting review' : 'All clear'}
+          value={pendingApprovals}
+          sub={pendingApprovals > 0 ? 'Awaiting review' : 'All clear'}
           icon="◉"
-          tone={pausedCount > 0 ? 'red' : ''}
+          tone={pendingApprovals > 0 ? 'red' : ''}
         />
       </div>
 
-      {/* Quick Agent Overview */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="dash-section-title">Active Agents</h3>
-          <button className="btn ghost" style={{ fontSize: 12, padding: '6px 12px' }} onClick={() => {}}>
-            View All →
-          </button>
-        </div>
-        <div className="mini-agent-grid">
-          {agents.slice(0, 8).map((a) => (
-            <MiniAgentCard key={a.id} agent={a} onOpen={onOpenAgent} />
-          ))}
-        </div>
-      </div>
-
-      {/* Charts Row */}
+      {/* Charts Row — below stat tiles */}
       <div className="dash-charts-row">
         <ChartCard title="Run Activity" subtitle="Last 14 days">
           <Sparkline data={runData} color="var(--green)" height={80} />
@@ -385,61 +602,104 @@ export default function MissionControl({ agents, onOpenAgent, loading, error, la
         </ChartCard>
       </div>
 
-      {/* Bottom Row: Recent Activity + Recent Issues */}
-      <div className="dash-bottom-row">
-        <div className="min-w-0">
-          <h3 className="dash-section-title">Recent Activity</h3>
-          <div className="dash-list-box">
-            {agents.slice(0, 6).map((a, i) => (
-              <ActivityRow
-                key={a.id}
-                avatar={initials(a.name)}
-                name="System"
-                action={i % 3 === 0 ? 'created API key for' : i % 3 === 1 ? 'updated config for' : 'synced data for'}
-                target={`${a.name} (${a.title})`}
-                time={`${(i + 1) * 7}m ago`}
-              />
-            ))}
-          </div>
-        </div>
+      {/* Active Agents — latest 4 issues with assigned agents */}
+      <div className="mb-6">
+        <h3 className="dash-section-title" style={{ marginBottom: 12 }}>Active Agents</h3>
+        <div className="dash-active-agents-list">
+          {issues
+            .slice()
+            .sort((a, b) => {
+              const da = new Date(a.createdAt || a.created_at || a.updatedAt || a.updated_at || 0).getTime()
+              const db = new Date(b.createdAt || b.created_at || b.updatedAt || b.updated_at || 0).getTime()
+              return db - da
+            })
+            .slice(0, 8)
+            .map((issue) => {
+              const agent = agents.find((ag) =>
+                ag.apiData?.id === issue.assigneeAgentId ||
+                ag.apiData?.uuid === issue.assigneeAgentId
+              )
+              if (!agent) return null
+              const color = COLORS[agent.id] || 'violet'
+              const rar = RARITY[agent.id] || { tier: 'SR', stars: 4 }
+              const img = getAgentImage(agent.id)
+              const online = isOnline(agent)
+              const resolvedStatus = resolveIssueStatus(issue)
+              const issueStatus = resolvedStatus.label
+              const startedAt = issue.startedAt || issue.started_at || null
+              const completedAt = issue.completedAt || issue.completed_at || null
+              const identifier = issue.identifier || issue.key || issue.number || `#${issue.id || ''}`
+              const title = issue.title || issue.name || issue.summary || 'Untitled'
 
-        <div className="min-w-0">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="dash-section-title">Recent Issues</h3>
-            {issuesUpdated && (
-              <span className="mono" style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-                {issuesLoading ? '⟳ syncing…' : `● ${timeAgo(issuesUpdated)}`}
-              </span>
-            )}
-          </div>
-          {issuesError && (
-            <div className="rt-banner err" style={{ marginBottom: 8, fontSize: 11 }}>
-              ⚠ Issues fetch failed: {issuesError}
-            </div>
-          )}
-          <div className="dash-list-box">
-            {issues.length === 0 && !issuesLoading && !issuesError ? (
-              <div className="dash-task-row" style={{ color: 'var(--text-muted)', justifyContent: 'center' }}>
-                No issues found
-              </div>
-            ) : (
-              issues.slice(0, 10).map((issue) => (
-                <IssueRow
-                  key={issue.id || issue.uuid}
-                  status={issue.status || 'open'}
-                  code={issue.identifier || issue.code || `ISS-${issue.id?.slice(0, 6)}`}
-                  title={issue.title || 'Untitled issue'}
-                  assignee={issue.assignee?.name || issue.assigneeName}
-                  time={issue.updatedAt ? timeAgo(issue.updatedAt) : '—'}
-                />
-              ))
-            )}
-          </div>
-          <div style={{ marginTop: 6, fontSize: 10, color: 'var(--text-muted)', textAlign: 'right' }}>
-            {openIssues} open · {closedIssues} closed · polling 3s
-          </div>
+              return (
+                <div key={issue.id || identifier} className="dash-active-agent-row">
+                  {/* Agent Card */}
+                  <div
+                    className="mini-agent-card dash-active-agent-card"
+                    onClick={() => onOpenAgent(agent.id)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onOpenAgent(agent.id) }}
+                  >
+                    <div className={`mini-agent-grad ${color}`}>
+                      <div className="mini-agent-top">
+                        <div className="rarity">
+                          <span className="label">{rar.tier}</span>
+                          <StarRow n={rar.stars} />
+                        </div>
+                        <div className={`live-pip ${online ? 'on' : 'off'}`} />
+                      </div>
+                      <div className="mini-agent-mid">
+                        {img ? (
+                          <img src={img} alt={agent.name} className="mini-agent-portrait-img" />
+                        ) : (
+                          <div className="mini-agent-initials">{initials(agent.name)}</div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mini-agent-body">
+                      <h4>{agent.name}</h4>
+                      <div className="role">{agent.title}</div>
+                      <div className="mini-agent-meta">
+                        <span>Lv {agent.level}</span>
+                        <span>·</span>
+                        <span>{adapterLabel(agent.apiData?.adapterType)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Issue Detail Box */}
+                  <div className="dash-issue-detail-box clickable" onClick={() => setSelectedIssue(issue)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedIssue(issue) }}>
+                    <div className="dash-issue-detail-header">
+                      <span className="dash-issue-detail-id mono">{identifier}</span>
+                      <span className="dash-issue-detail-status" style={{ background: `${resolvedStatus.colour}22`, color: resolvedStatus.colour }}>{issueStatus}</span>
+                    </div>
+                    <div className="dash-issue-detail-title">{title}</div>
+                    <div className="dash-issue-detail-times">
+                      {startedAt && (
+                        <span className="dash-issue-detail-time">
+                          <span className="dash-issue-detail-label">Start</span>
+                          <span className="mono">{new Date(startedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                        </span>
+                      )}
+                      {completedAt && (
+                        <span className="dash-issue-detail-time">
+                          <span className="dash-issue-detail-label">End</span>
+                          <span className="mono">{new Date(completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
         </div>
       </div>
+
+      {/* Issue Detail Popup */}
+      {selectedIssue && (
+        <IssuePopup issue={selectedIssue} onClose={() => setSelectedIssue(null)} agents={agents} />
+      )}
     </div>
   )
 }

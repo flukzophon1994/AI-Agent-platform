@@ -13,10 +13,12 @@ import { getAgentApiKey } from './agentKeys'
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 const API_CONFIG = {
-  baseUrl: import.meta.env.VITE_API_BASE_URL || 'https://paperclip-yom5.srv1508704.hstgr.cloud',
-  apiKey: import.meta.env.VITE_API_KEY || 'pcp_1b41d008653047aebca8c34d787208527879c76511a34e69',
+  baseUrl: import.meta.env.DEV
+    ? ''
+    : (import.meta.env.VITE_API_BASE_URL || 'https://paperclip-yom5.srv1508704.hstgr.cloud'),
+  apiKey: import.meta.env.VITE_API_KEY || 'pcp_c4efebee09b45a3119c95375af0c0f3130221ea259d08256',
   companyId: import.meta.env.VITE_COMPANY_ID || '39e68b6f-0d66-4033-9899-e6b94474bcfe',
-  pollInterval: import.meta.env.VITE_POLL_INTERVAL ? Number(import.meta.env.VITE_POLL_INTERVAL) : 30000,
+  pollInterval: import.meta.env.VITE_POLL_INTERVAL ? Number(import.meta.env.VITE_POLL_INTERVAL) : 3000,
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -57,34 +59,39 @@ export async function fetchAgents() {
 }
 
 /**
- * Fetch each agent individually using its own per-agent API key.
- * Returns an array of merged agent objects (local shape + API data).
- * Failed fetches fall back to local data for that agent.
+ * Fetch all agents from the company list endpoint, then merge with local data.
+ * Falls back to local data if the list endpoint fails or an agent is not found.
  */
 export async function fetchAgentsIndividual() {
-  const results = await Promise.all(
-    AGENTS.map(async (local) => {
-      try {
-        if (!local.apiData?.uuid) return local
-        const api = await apiFetch(
-          `/api/companies/${API_CONFIG.companyId}/agents/${local.apiData.uuid}`,
-          {},
-          local.id
-        )
-        return {
-          ...local,
-          status: api.status || local.status,
-          task: api.capabilities ? api.capabilities.slice(0, 160) + (api.capabilities.length > 160 ? '…' : '') : local.task,
-          apiData: { ...local.apiData, ...api },
-        }
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.warn(`[agentService] fetch agent ${local.id} failed:`, err.message)
-        return local
-      }
-    })
-  )
-  return results
+  let apiList = []
+  try {
+    const data = await apiFetch(`/api/companies/${API_CONFIG.companyId}/agents`)
+    apiList = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : [])
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('[agentService] fetchAgents list failed:', err.message)
+    return AGENTS
+  }
+
+  // Build lookup by UUID for fast merging
+  const byUuid = new Map()
+  apiList.forEach((agent) => {
+    if (agent.id) byUuid.set(agent.id, agent)
+  })
+
+  return AGENTS.map((local) => {
+    const api = byUuid.get(local.apiData?.uuid)
+    if (!api) return local
+    const apiStatus = api.status ?? api.state ?? local.status
+    return {
+      ...local,
+      status: apiStatus,
+      task: api.capabilities
+        ? api.capabilities.slice(0, 160) + (api.capabilities.length > 160 ? '…' : '')
+        : local.task,
+      apiData: { ...local.apiData, ...api },
+    }
+  })
 }
 
 /**
@@ -168,6 +175,50 @@ export async function fetchIssues() {
   } catch (err) {
     // eslint-disable-next-line no-console
     console.warn('[agentService] fetchIssues failed:', err.message)
+    return []
+  }
+}
+
+/**
+ * Fetch a single issue by ID with full details.
+ * GET /api/issues/{issueId}
+ */
+export async function fetchIssueById(issueId) {
+  try {
+    const data = await apiFetch(`/api/issues/${issueId}`)
+    return data
+  } catch (err) {
+    console.warn('[agentService] fetchIssueById failed:', err.message)
+    return null
+  }
+}
+
+/**
+ * Fetch comments for an issue — contains AI agent responses.
+ * GET /api/issues/{issueId}/comments
+ * Returns array of { id, body, authorAgentId, createdAt, ... }
+ */
+export async function fetchIssueComments(issueId) {
+  try {
+    const data = await apiFetch(`/api/issues/${issueId}/comments`)
+    return Array.isArray(data) ? data : []
+  } catch (err) {
+    console.warn('[agentService] fetchIssueComments failed:', err.message)
+    return []
+  }
+}
+
+/**
+ * Fetch documents attached to an issue — long-form AI outputs (plans, reports).
+ * GET /api/issues/{issueId}/documents
+ * Returns array of { id, key, title, format, body, ... }
+ */
+export async function fetchIssueDocuments(issueId) {
+  try {
+    const data = await apiFetch(`/api/issues/${issueId}/documents`)
+    return Array.isArray(data) ? data : []
+  } catch (err) {
+    console.warn('[agentService] fetchIssueDocuments failed:', err.message)
     return []
   }
 }

@@ -157,8 +157,8 @@ export default function AgentRoster({ agents, onOpenAgent, loading, error, lastU
       : agents.filter((a) => RARITY[a.id]?.tier === filter.toUpperCase())
   )
 
-  const onlineCount = agents.filter(isOnline).length
-  const pausedCount = agents.filter((a) => !!a.apiData?.pausedAt).length
+  const onlineCount = agents.filter((a) => a.status === 'idle').length
+  const pausedCount = agents.filter((a) => a.status === 'paused').length
   const ceoCount = agents.filter((a) => a.apiData?.role === 'ceo').length
   const totalBudget = agents.reduce((sum, a) => sum + (a.apiData?.budgetMonthlyCents || 0), 0)
   const totalSpent = agents.reduce((sum, a) => sum + (a.apiData?.spentMonthlyCents || 0), 0)
@@ -198,7 +198,7 @@ export default function AgentRoster({ agents, onOpenAgent, loading, error, lastU
       )}
       {!error && lastUpdated && (
         <div className="rt-banner ok">
-          <span>● Live · {timeAgo(lastUpdated)} · polling every 30s</span>
+          <span>● Live · {timeAgo(lastUpdated)} · polling every 3s</span>
         </div>
       )}
 
@@ -213,16 +213,6 @@ export default function AgentRoster({ agents, onOpenAgent, loading, error, lastU
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="stat-row">
-        <MiniTile label="Active Agents" value={agents.length} sub={`${onlineCount} online · ${pausedCount} paused`} />
-        <MiniTile label="Budget Used" value={`$${(totalSpent / 100).toFixed(2)}`}
-          sub={totalBudget ? `of $${(totalBudget / 100).toFixed(2)} · ${Math.round((totalSpent / totalBudget) * 100)}%` : 'no budget set'} tone="gold" />
-        <MiniTile label="Adapters" value={new Set(agents.map((a) => a.apiData?.adapterType).filter(Boolean)).size}
-          sub={`${ceoCount} orchestrator${ceoCount !== 1 ? 's' : ''}`} tone="green" />
-        <MiniTile label="System Health" value={`${Math.round((onlineCount / Math.max(agents.length, 1)) * 100)}%`}
-          sub={`${agents.length - onlineCount} offline · polling 30s`} tone={onlineCount === agents.length ? 'green' : 'red'} />
-      </div>
 
       {/* Agent grid */}
       <div className="card-grid">

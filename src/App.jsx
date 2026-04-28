@@ -1,9 +1,11 @@
-import { useState, useEffect, Component } from 'react'
+import { useState, useEffect, useRef, Component } from 'react'
 import useAgents from './hooks/useAgents'
+import { fetchIssues } from './api/agentService'
 import MissionControl from './Dashboard'
 import AgentRoster from './AgentRoster'
 import Office from './Office'
 import AgentDetail from './Detail'
+import Issues from './Issues'
 
 const TWEAK_DEFAULTS = {
   scanlines: true,
@@ -14,7 +16,35 @@ const TWEAK_DEFAULTS = {
 /** Target origin for postMessage. Use '*' only during local dev / same-origin iframe. */
 const PM_ORIGIN = import.meta.env.VITE_PARENT_ORIGIN || window.location.origin || '*'
 
-function Sidebar({ view, goTo, agentCount }) {
+/* ── URL ↔ view mapping ─────────────────────────────────────────────── */
+
+const VIEW_TO_PATH = {
+  dashboard: '/dashboard',
+  agents:    '/agents',
+  missions:  '/issues',
+  office:    '/tower',
+  detail:    '/agent',       // + /:id
+  memory:    '/memory',
+  settings:  '/settings',
+}
+
+function pathToView(pathname) {
+  if (pathname === '/' || pathname === '/dashboard') return { view: 'dashboard', activeId: null }
+  if (pathname === '/agents')                    return { view: 'agents', activeId: null }
+  if (pathname === '/issues')                    return { view: 'missions', activeId: null }
+  if (pathname === '/tower')                     return { view: 'office', activeId: null }
+  if (pathname === '/memory')                    return { view: 'memory', activeId: null }
+  if (pathname === '/settings')                  return { view: 'settings', activeId: null }
+  // /agent/:id
+  const m = pathname.match(/^\/agent\/(.+)$/)
+  if (m) return { view: 'detail', activeId: m[1] }
+  // fallback
+  return { view: 'dashboard', activeId: null }
+}
+
+/* ── Sidebar ────────────────────────────────────────────────────────── */
+
+function Sidebar({ view, goTo, agentCount, inProgressCount }) {
   const NavItem = ({ id, icon, label, badge }) => {
     const isActive = view === id
     return (
@@ -25,7 +55,7 @@ function Sidebar({ view, goTo, agentCount }) {
       >
         <span className="ico" aria-hidden="true">{icon}</span>
         <span>{label}</span>
-        {badge != null && <span className="badge">{badge}</span>}
+        {badge != null && <span className={`badge ${typeof badge === 'number' && badge > 0 ? 'pulse' : ''}`}>{badge}</span>}
       </button>
     )
   }
@@ -43,7 +73,7 @@ function Sidebar({ view, goTo, agentCount }) {
       <nav aria-label="Overview">
         <div className="nav-section">
           <div className="nav-heading">Overview</div>
-          <NavItem id="dashboard" icon="◧" label="Dashboard" />
+          <NavItem id="dashboard" icon="◧" label="Dashboard" badge={inProgressCount} />
           <NavItem id="agents" icon="⬢" label="Agents" badge={agentCount} />
         </div>
       </nav>
@@ -51,9 +81,8 @@ function Sidebar({ view, goTo, agentCount }) {
       <nav aria-label="Operations">
         <div className="nav-section">
           <div className="nav-heading">Operations</div>
-          <NavItem id="missions" icon="▷" label="Mission Log" badge="●" />
+          <NavItem id="missions" icon="▷" label="Issues" badge={inProgressCount > 0 ? inProgressCount : null} />
           <NavItem id="office" icon="✦" label="The Tower" />
-          <NavItem id="skills" icon="✚" label="Skills" />
           <NavItem id="memory" icon="◌" label="Memory Graph" />
         </div>
       </nav>
@@ -75,6 +104,8 @@ function Sidebar({ view, goTo, agentCount }) {
     </aside>
   )
 }
+
+/* ── ErrorBoundary ──────────────────────────────────────────────────── */
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -106,14 +137,50 @@ class ErrorBoundary extends Component {
   }
 }
 
+/* ── App ────────────────────────────────────────────────────────────── */
+
 export default function App() {
-  const [view, setView] = useState('mission')
-  const [activeId, setActiveId] = useState(null)
+  // Initialize view from current URL
+  const initial = pathToView(window.location.pathname)
+  const [view, setView] = useState(initial.view)
+  const [activeId, setActiveId] = useState(initial.activeId)
   const [tweaksOpen, setTweaksOpen] = useState(false)
   const [tweaks, setTweaks] = useState(TWEAK_DEFAULTS)
 
-  // Realtime polling from Paperclip API (every 5s)
-  const { agents, loading, error, lastUpdated, refresh } = useAgents(5000)
+  // Realtime polling from Paperclip API (every 3s)
+  const { agents, loading, error, lastUpdated, refresh } = useAgents(3000)
+
+  // Poll in-progress issues count for sidebar badge
+  const [inProgressCount, setInProgressCount] = useState(0)
+  useEffect(() => {
+    let cancelled = false
+    async function countInProgress() {
+      try {
+        const data = await fetchIssues()
+        if (cancelled) return
+        const list = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : []
+        const count = list.filter((i) => {
+          const s = (i.status ?? '').toString().toLowerCase().replace(/[-_\s]/g, '')
+          return s === 'inprogress' || s === 'in_progress' || s.includes('progress')
+        }).length
+        setInProgressCount(count)
+      } catch { /* ignore */ }
+    }
+    countInProgress()
+    const id = setInterval(countInProgress, 3000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [])
+
+  // Listen for browser back/forward
+  useEffect(() => {
+    const onPop = () => {
+      const { view: v, activeId: id } = pathToView(window.location.pathname)
+      setView(v)
+      setActiveId(id)
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
 
   useEffect(() => {
     const handler = (e) => {
@@ -130,19 +197,34 @@ export default function App() {
     window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { [k]: v } }, PM_ORIGIN)
   }
 
-  const open = (id) => { setActiveId(id); setView('detail'); window.scrollTo(0, 0) }
-  const goTo = (v) => {
-    setView(v)
+  const open = (id) => {
+    setActiveId(id)
+    setView('detail')
+    window.history.pushState(null, '', `/agent/${id}`)
     window.scrollTo(0, 0)
   }
-  const back = () => { setView('agents'); window.scrollTo(0, 0) }
+
+  const goTo = (v) => {
+    setView(v)
+    setActiveId(null)
+    const path = VIEW_TO_PATH[v] || '/dashboard'
+    window.history.pushState(null, '', path)
+    window.scrollTo(0, 0)
+  }
+
+  const back = () => {
+    setView('agents')
+    setActiveId(null)
+    window.history.pushState(null, '', '/agents')
+    window.scrollTo(0, 0)
+  }
 
   const active = agents.find((a) => a.id === activeId)
   const sidebarActive = view === 'detail' ? 'agents' : view
 
   return (
     <div className="app">
-      <Sidebar view={sidebarActive} goTo={goTo} agentCount={agents.length} />
+      <Sidebar view={sidebarActive} goTo={goTo} agentCount={agents.length} inProgressCount={inProgressCount} />
 
       <ErrorBoundary>
         <main>
@@ -166,6 +248,7 @@ export default function App() {
               onRefresh={refresh}
             />
           )}
+          {view === 'missions' && <Issues />}
           {view === 'office' && (
             <Office
               agents={agents}
@@ -175,7 +258,8 @@ export default function App() {
               lastUpdated={lastUpdated}
               onRefresh={refresh}
             />
-          )}
+          )
+          }
           {view === 'detail' && active && (
             <AgentDetail agent={active} agents={agents} onOpenAgent={open} onBack={back} />
           )}

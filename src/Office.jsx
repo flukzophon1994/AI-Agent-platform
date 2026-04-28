@@ -1,7 +1,5 @@
-import { useEffect, useRef, forwardRef, useState } from 'react'
+import React, { useEffect, useRef, forwardRef, useState } from 'react'
 import BossSprite from './BossSprite'
-import { AGENT_UUIDS } from './api/agentIds'
-import { fetchAgentByUuid } from './api/agentService'
 
 const FLOORS = [
   {
@@ -72,14 +70,21 @@ const LINES = {
 /**
  * Determine effective tower status from API data.
  * Priority: paused > running > idle
- * - paused: apiData.pausedAt is set OR apiData.status === 'paused'
- * - running: status === 'running'
- * - idle: everything else
  */
 function towerStatus(agent) {
-  const apiStatus = agent.apiData?.status || agent.status
-  if (agent.apiData?.pausedAt || apiStatus === 'paused') return 'paused'
-  if (apiStatus === 'running') return 'running'
+  const raw = (agent.apiData?.status ?? agent.status ?? '').toString().toLowerCase()
+  const pausedAt = agent.apiData?.pausedAt
+  const isPaused =
+    !!pausedAt ||
+    raw === 'paused' ||
+    raw === 'inactive' ||
+    raw === 'disabled' ||
+    raw === 'stopped' ||
+    raw === 'offline' ||
+    raw === 'hold' ||
+    raw === 'suspended'
+  if (isPaused) return 'paused'
+  if (raw === 'running' || raw === 'active' || raw === 'online' || raw === 'busy') return 'running'
   return 'idle'
 }
 
@@ -111,6 +116,7 @@ function WingPatrol({ wing, agents, onOpenAgent }) {
   const containerRef = useRef(null)
   const rafRef = useRef()
   const npcRefs = useRef(new Map())
+  const agentsRef = useRef(agents)
   const stateRef = useRef(
     wing.ids.map((id, i) => ({
       id,
@@ -123,14 +129,18 @@ function WingPatrol({ wing, agents, onOpenAgent }) {
     }))
   )
 
+  // Keep agentsRef fresh without restarting RAF
+  useEffect(() => { agentsRef.current = agents }, [agents])
+
   useEffect(() => {
     let last = performance.now()
     const tick = (now) => {
       const dt = Math.min(64, now - last)
       last = now
       const w = containerRef.current ? containerRef.current.offsetWidth : 600
+      const currentAgents = agentsRef.current
       const next = stateRef.current.map((s) => {
-        const agent = agents.find((a) => a.id === s.id)
+        const agent = currentAgents.find((a) => a.id === s.id)
         if (!agent) return s
         let { x, dir, speed, bubble, bubbleTimer, waitTimer } = s
 
@@ -174,7 +184,7 @@ function WingPatrol({ wing, agents, onOpenAgent }) {
           bubbleEl.style.display = s.bubble ? 'block' : 'none'
         }
         // Update status pip class from current agent data
-        const agent = agents.find((a) => a.id === s.id)
+        const agent = currentAgents.find((a) => a.id === s.id)
         if (agent) {
           const pipEl = el.querySelector('.npc-pip')
           if (pipEl) {
@@ -191,7 +201,7 @@ function WingPatrol({ wing, agents, onOpenAgent }) {
     }
     rafRef.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(rafRef.current)
-  }, [agents])
+  }, []) // empty deps — runs once, uses ref for latest agents
 
   return (
     <div ref={containerRef} className={`wing wing-${wing.side}`}>
@@ -304,10 +314,10 @@ function FloorPatrol({ floor, agents, onOpenAgent }) {
 
       <div className="wings">
         {floor.wings.map((wing, i) => (
-          <>
-            {i > 0 && <div key={`div-${i}`} className="wing-divider"></div>}
-            <WingPatrol key={wing.side} wing={wing} agents={agents} onOpenAgent={onOpenAgent} />
-          </>
+          <React.Fragment key={wing.side}>
+            {i > 0 && <div className="wing-divider"></div>}
+            <WingPatrol wing={wing} agents={agents} onOpenAgent={onOpenAgent} />
+          </React.Fragment>
         ))}
       </div>
 
@@ -389,47 +399,11 @@ export default function Office({ agents, onOpenAgent, loading, error, lastUpdate
   // Keep ref in sync with props
   useEffect(() => { agentsRef.current = agents }, [agents])
 
-  // Poll each agent by UUID every 3 seconds
+  // Sync with agents prop (already fetched & merged by App via useAgents)
   useEffect(() => {
-    let mounted = true
-
-    const poll = async () => {
-      const currentAgents = agentsRef.current
-      try {
-        const results = await Promise.all(
-          Object.entries(AGENT_UUIDS).map(async ([localId, uuid]) => {
-            try {
-              const api = await fetchAgentByUuid(uuid, localId)
-              const local = currentAgents.find((a) => a.id === localId)
-              if (!local) return null
-              return {
-                ...local,
-                status: api.status || local.status,
-                task: api.capabilities ? api.capabilities.slice(0, 160) + (api.capabilities.length > 160 ? '…' : '') : local.task,
-                apiData: { ...local.apiData, ...api },
-              }
-            } catch (err) {
-              // eslint-disable-next-line no-console
-              console.warn(`[Tower] fetch ${localId} failed:`, err.message)
-              const local = currentAgents.find((a) => a.id === localId)
-              return local || null
-            }
-          })
-        )
-        const valid = results.filter(Boolean)
-        if (valid.length > 0 && mounted) {
-          setTowerAgents(valid)
-          setTowerPollTick(Date.now())
-        }
-      } catch (err) {
-        // Keep existing data on total failure
-      }
-    }
-
-    poll() // initial fetch
-    const id = setInterval(poll, 3000)
-    return () => { mounted = false; clearInterval(id) }
-  }, []) // empty deps — runs once, uses ref for latest agents
+    setTowerAgents(agents)
+    setTowerPollTick(Date.now())
+  }, [agents])
 
   const activeCount = towerAgents.filter((a) => towerStatus(a) === 'running').length
   const pausedCount = towerAgents.filter((a) => towerStatus(a) === 'paused').length
