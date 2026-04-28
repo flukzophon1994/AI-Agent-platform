@@ -1,6 +1,7 @@
 import { useState, useEffect, Component } from 'react'
 import useAgents from './hooks/useAgents'
 import MissionControl from './Dashboard'
+import AgentRoster from './AgentRoster'
 import Office from './Office'
 import AgentDetail from './Detail'
 
@@ -43,7 +44,7 @@ function Sidebar({ view, goTo, agentCount }) {
         <div className="nav-section">
           <div className="nav-heading">Overview</div>
           <NavItem id="dashboard" icon="◧" label="Dashboard" />
-          <NavItem id="mission" icon="⬢" label="Agents" badge={agentCount} />
+          <NavItem id="agents" icon="⬢" label="Agents" badge={agentCount} />
         </div>
       </nav>
 
@@ -131,14 +132,13 @@ export default function App() {
 
   const open = (id) => { setActiveId(id); setView('detail'); window.scrollTo(0, 0) }
   const goTo = (v) => {
-    const map = { dashboard: 'mission', missions: 'mission', skills: 'mission', memory: 'mission', settings: 'mission' }
-    setView(map[v] || v)
+    setView(v)
     window.scrollTo(0, 0)
   }
-  const back = () => { setView('mission'); window.scrollTo(0, 0) }
+  const back = () => { setView('agents'); window.scrollTo(0, 0) }
 
   const active = agents.find((a) => a.id === activeId)
-  const sidebarActive = view === 'detail' ? 'mission' : view
+  const sidebarActive = view === 'detail' ? 'agents' : view
 
   return (
     <div className="app">
@@ -146,8 +146,18 @@ export default function App() {
 
       <ErrorBoundary>
         <main>
-          {view === 'mission' && (
+          {view === 'dashboard' && (
             <MissionControl
+              agents={agents}
+              onOpenAgent={open}
+              loading={loading}
+              error={error}
+              lastUpdated={lastUpdated}
+              onRefresh={refresh}
+            />
+          )}
+          {view === 'agents' && (
+            <AgentRoster
               agents={agents}
               onOpenAgent={open}
               loading={loading}
@@ -172,7 +182,7 @@ export default function App() {
         </main>
       </ErrorBoundary>
 
-      {view === 'mission' && (
+      {view === 'agents' && (
         <button
           className="btn primary"
           style={{ position: 'fixed', right: 24, bottom: 24, zIndex: 50 }}

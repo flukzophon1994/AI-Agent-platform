@@ -1,5 +1,7 @@
-import { useEffect, useRef, forwardRef } from 'react'
+import { useEffect, useRef, forwardRef, useState } from 'react'
 import BossSprite from './BossSprite'
+import { AGENT_UUIDS } from './api/agentIds'
+import { fetchAgentByUuid } from './api/agentService'
 
 const FLOORS = [
   {
@@ -67,12 +69,27 @@ const LINES = {
   turtle: ['Slow is smooth.', 'Holding the line.', 'No tickets in queue.', 'SOP confirmed.', 'Standing post.'],
 }
 
+/**
+ * Determine effective tower status from API data.
+ * Priority: paused > running > idle
+ * - paused: apiData.pausedAt is set OR apiData.status === 'paused'
+ * - running: status === 'running'
+ * - idle: everything else
+ */
+function towerStatus(agent) {
+  const apiStatus = agent.apiData?.status || agent.status
+  if (agent.apiData?.pausedAt || apiStatus === 'paused') return 'paused'
+  if (apiStatus === 'running') return 'running'
+  return 'idle'
+}
+
 const NPC = forwardRef(function NPC({ agent, x, y, dir, bubble, onClick }, ref) {
   const flip = dir < 0 ? 'scaleX(-1)' : 'scaleX(1)'
+  const status = towerStatus(agent)
   return (
     <div
       ref={ref}
-      className={`npc ${agent.status === 'idle' ? 'idle' : ''}`}
+      className="npc"
       style={{ left: x, bottom: y }}
       onClick={onClick}
       role="button"
@@ -81,7 +98,7 @@ const NPC = forwardRef(function NPC({ agent, x, y, dir, bubble, onClick }, ref) 
       aria-label={`Open ${agent.name} profile`}
     >
       {bubble && <div className="bubble">{bubble}</div>}
-      <div className={`npc-pip ${agent.status}`}></div>
+      <div className={`npc-pip ${status}`}></div>
       <div className="npc-name">{agent.name}</div>
       <div className="npc-bob" style={{ transform: flip }}>
         <BossSprite which={agent.sprite} scale={agent.id === 'satanmorroc' ? 3 : 2} glow={agent.id === 'satanmorroc'} />
@@ -116,20 +133,19 @@ function WingPatrol({ wing, agents, onOpenAgent }) {
         const agent = agents.find((a) => a.id === s.id)
         if (!agent) return s
         let { x, dir, speed, bubble, bubbleTimer, waitTimer } = s
-        if (agent.status === 'idle') {
-          if (Math.random() < 0.005) dir = -dir
+
+        // Always walk — regardless of status
+        if (waitTimer > 0) {
+          waitTimer -= dt
         } else {
-          if (waitTimer > 0) {
-            waitTimer -= dt
-          } else {
-            x += dir * speed * (dt / 16)
-            if (Math.random() < 0.0015) waitTimer = 600 + Math.random() * 1500
-          }
-          const margin = 24
-          if (x < margin) { x = margin; dir = 1 }
-          if (x > w - margin - 70) { x = w - margin - 70; dir = -1 }
-          if (Math.random() < 0.001) dir = -dir
+          x += dir * speed * (dt / 16)
+          if (Math.random() < 0.0015) waitTimer = 600 + Math.random() * 1500
         }
+        const margin = 24
+        if (x < margin) { x = margin; dir = 1 }
+        if (x > w - margin - 70) { x = w - margin - 70; dir = -1 }
+        if (Math.random() < 0.001) dir = -dir
+
         bubbleTimer -= dt
         if (bubbleTimer <= 0) {
           if (bubble) {
@@ -156,6 +172,18 @@ function WingPatrol({ wing, agents, onOpenAgent }) {
         if (bubbleEl) {
           bubbleEl.textContent = s.bubble || ''
           bubbleEl.style.display = s.bubble ? 'block' : 'none'
+        }
+        // Update status pip class from current agent data
+        const agent = agents.find((a) => a.id === s.id)
+        if (agent) {
+          const pipEl = el.querySelector('.npc-pip')
+          if (pipEl) {
+            const newStatus = towerStatus(agent)
+            if (pipEl.dataset.status !== newStatus) {
+              pipEl.dataset.status = newStatus
+              pipEl.className = `npc-pip ${newStatus}`
+            }
+          }
         }
       })
 
@@ -327,14 +355,14 @@ function makeTowerFeed(agents) {
   const entries = []
   agents.forEach((a) => {
     const online = isOnline(a)
-    const status = online ? (a.status === 'working' || a.status === 'combat' ? 'ACTIVE' : 'IDLE') : 'OFFLINE'
-    const tone = online ? (status === 'ACTIVE' ? 'grn' : '') : 'red'
-    const extra = a.apiData?.pausedAt ? ' · PAUSED' : ''
+    const ts = towerStatus(a)
+    const status = ts === 'paused' ? 'PAUSED' : ts === 'running' ? 'RUNNING' : online ? 'IDLE' : 'OFFLINE'
+    const tone = ts === 'paused' ? 'red' : ts === 'running' ? 'blu' : online ? '' : 'red'
     entries.push({
       time: t(now),
       floor: getFloorForAgent(a.id),
       name: a.name.split(' ')[0],
-      body: `status=${status}${extra} · adapter=${a.apiData?.adapterType || '—'} · hb=${a.apiData?.lastHeartbeatAt ? timeAgo(a.apiData.lastHeartbeatAt) : 'never'}`,
+      body: `status=${status} · adapter=${a.apiData?.adapterType || '—'} · hb=${a.apiData?.lastHeartbeatAt ? timeAgo(a.apiData.lastHeartbeatAt) : 'never'}`,
       tone,
     })
   })
@@ -354,9 +382,59 @@ function getFloorForAgent(id) {
 }
 
 export default function Office({ agents, onOpenAgent, loading, error, lastUpdated, onRefresh }) {
-  const activeCount = agents.filter((a) => a.status !== 'idle').length
-  const onlineCount = agents.filter(isOnline).length
-  const feed = makeTowerFeed(agents)
+  const [towerAgents, setTowerAgents] = useState(agents)
+  const [towerPollTick, setTowerPollTick] = useState(Date.now())
+  const agentsRef = useRef(agents)
+
+  // Keep ref in sync with props
+  useEffect(() => { agentsRef.current = agents }, [agents])
+
+  // Poll each agent by UUID every 3 seconds
+  useEffect(() => {
+    let mounted = true
+
+    const poll = async () => {
+      const currentAgents = agentsRef.current
+      try {
+        const results = await Promise.all(
+          Object.entries(AGENT_UUIDS).map(async ([localId, uuid]) => {
+            try {
+              const api = await fetchAgentByUuid(uuid, localId)
+              const local = currentAgents.find((a) => a.id === localId)
+              if (!local) return null
+              return {
+                ...local,
+                status: api.status || local.status,
+                task: api.capabilities ? api.capabilities.slice(0, 160) + (api.capabilities.length > 160 ? '…' : '') : local.task,
+                apiData: { ...local.apiData, ...api },
+              }
+            } catch (err) {
+              // eslint-disable-next-line no-console
+              console.warn(`[Tower] fetch ${localId} failed:`, err.message)
+              const local = currentAgents.find((a) => a.id === localId)
+              return local || null
+            }
+          })
+        )
+        const valid = results.filter(Boolean)
+        if (valid.length > 0 && mounted) {
+          setTowerAgents(valid)
+          setTowerPollTick(Date.now())
+        }
+      } catch (err) {
+        // Keep existing data on total failure
+      }
+    }
+
+    poll() // initial fetch
+    const id = setInterval(poll, 3000)
+    return () => { mounted = false; clearInterval(id) }
+  }, []) // empty deps — runs once, uses ref for latest agents
+
+  const activeCount = towerAgents.filter((a) => towerStatus(a) === 'running').length
+  const pausedCount = towerAgents.filter((a) => towerStatus(a) === 'paused').length
+  const onlineCount = towerAgents.filter(isOnline).length
+  const feed = makeTowerFeed(towerAgents)
 
   return (
     <div className="main">
@@ -364,16 +442,16 @@ export default function Office({ agents, onOpenAgent, loading, error, lastUpdate
         <div className="page-title">
           <h1><span className="accent">The</span> Tower</h1>
           <div className="meta">
-            8-bit agent office · {agents.length} agents · {onlineCount} online
-            {lastUpdated && (
-              <span className="mono" style={{ marginLeft: 8, color: 'var(--text-muted)' }}>
-                · sync {timeAgo(lastUpdated)}
-              </span>
-            )}
+            8-bit agent office · {towerAgents.length} agents · {onlineCount} online
+            <span className="mono" style={{ marginLeft: 8, color: 'var(--text-muted)' }}>
+              · sync {timeAgo(towerPollTick)}
+            </span>
           </div>
         </div>
         <div className="page-actions">
-          <span className="pill"><span className="dot"></span>{activeCount} ACTIVE</span>
+          <span className="pill"><span className="dot" style={{ background: '#4ce0a0' }}></span>{towerAgents.length - activeCount - pausedCount} IDLE</span>
+          <span className="pill"><span className="dot" style={{ background: '#6fe6f0' }}></span>{activeCount} RUNNING</span>
+          {pausedCount > 0 && <span className="pill"><span className="dot" style={{ background: '#ff5c7a' }}></span>{pausedCount} PAUSED</span>}
           <button className="btn ghost" onClick={onRefresh} disabled={loading}>
             {loading ? '⟳ Sync…' : '⟳ Refresh'}
           </button>
@@ -385,28 +463,28 @@ export default function Office({ agents, onOpenAgent, loading, error, lastUpdate
           <span>⚠ Tower link weak: {error} · showing cached patrols</span>
         </div>
       )}
-      {!error && lastUpdated && (
+      {!error && towerPollTick && (
         <div className="rt-banner ok">
-          <span>● Tower link active · sync {timeAgo(lastUpdated)} · 5s tick</span>
+          <span>● Tower link active · sync {timeAgo(towerPollTick)} · 3s tick</span>
         </div>
       )}
 
       <div className="tower-wrap scanlines">
         <div className="tower-head">
-          <span>◆ HERMOSO TOWER · 5 FLOORS · {agents.length} AGENTS · {onlineCount} ONLINE</span>
-          <span className="right">SCALE 2X · TICK 5S</span>
+          <span>◆ HERMOSO TOWER · 5 FLOORS · {towerAgents.length} AGENTS · {onlineCount} ONLINE</span>
+          <span className="right">SCALE 2X · TICK 3S</span>
         </div>
 
         {FLOORS.map((floor) => (
-          <FloorPatrol key={floor.num} floor={floor} agents={agents} onOpenAgent={onOpenAgent} />
+          <FloorPatrol key={floor.num} floor={floor} agents={towerAgents} onOpenAgent={onOpenAgent} />
         ))}
 
         <div className="tower-foot">
           {feed.slice(0, 8).map((f, i) => (
             <div key={i} className="row">
               [{f.time}] <span className="ag">{f.floor}</span> {f.name} {f.body}
-              {f.tone === 'grn' && <span className="grn"> · online</span>}
-              {f.tone === 'red' && <span className="red"> · offline</span>}
+              {f.tone === 'blu' && <span className="blu"> · running</span>}
+              {f.tone === 'red' && <span className="red"> · paused/offline</span>}
             </div>
           ))}
         </div>

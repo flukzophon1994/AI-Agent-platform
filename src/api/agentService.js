@@ -9,6 +9,7 @@
  */
 
 import { AGENTS } from '../agents'
+import { getAgentApiKey } from './agentKeys'
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 const API_CONFIG = {
@@ -19,17 +20,18 @@ const API_CONFIG = {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-function authHeaders() {
+function authHeaders(agentId) {
+  const key = agentId ? getAgentApiKey(agentId, API_CONFIG.apiKey) : API_CONFIG.apiKey
   return {
     'Content-Type': 'application/json',
-    ...(API_CONFIG.apiKey ? { Authorization: `Bearer ${API_CONFIG.apiKey}` } : {}),
+    ...(key ? { Authorization: `Bearer ${key}` } : {}),
   }
 }
 
-async function apiFetch(path, options = {}) {
+async function apiFetch(path, options = {}, agentId = '') {
   const url = `${API_CONFIG.baseUrl}${path}`
   const res = await fetch(url, {
-    headers: authHeaders(),
+    headers: authHeaders(agentId),
     ...options,
   })
   if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`)
@@ -39,7 +41,7 @@ async function apiFetch(path, options = {}) {
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * Fetch full agent list from Paperclip.
+ * Fetch full agent list from Paperclip using the global key.
  * Falls back to local mock data if API is not configured or unreachable.
  */
 export async function fetchAgents() {
@@ -55,6 +57,37 @@ export async function fetchAgents() {
 }
 
 /**
+ * Fetch each agent individually using its own per-agent API key.
+ * Returns an array of merged agent objects (local shape + API data).
+ * Failed fetches fall back to local data for that agent.
+ */
+export async function fetchAgentsIndividual() {
+  const results = await Promise.all(
+    AGENTS.map(async (local) => {
+      try {
+        if (!local.apiData?.uuid) return local
+        const api = await apiFetch(
+          `/api/companies/${API_CONFIG.companyId}/agents/${local.apiData.uuid}`,
+          {},
+          local.id
+        )
+        return {
+          ...local,
+          status: api.status || local.status,
+          task: api.capabilities ? api.capabilities.slice(0, 160) + (api.capabilities.length > 160 ? '…' : '') : local.task,
+          apiData: { ...local.apiData, ...api },
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn(`[agentService] fetch agent ${local.id} failed:`, err.message)
+        return local
+      }
+    })
+  )
+  return results
+}
+
+/**
  * Fetch single agent details by ID (using our local ID mapping).
  * Falls back to local mock data.
  */
@@ -64,7 +97,7 @@ export async function fetchAgentStatus(agentId) {
     const local = AGENTS.find((a) => a.id === agentId)
     if (!local?.apiData?.uuid) throw new Error('No API UUID mapped for this agent')
 
-    const data = await apiFetch(`/api/companies/${API_CONFIG.companyId}/agents/${local.apiData.uuid}`)
+    const data = await apiFetch(`/api/companies/${API_CONFIG.companyId}/agents/${local.apiData.uuid}`, {}, agentId)
     return data
   } catch (err) {
     // eslint-disable-next-line no-console
@@ -121,7 +154,34 @@ export async function sendAgentMessage(agentId, body) {
   return apiFetch(`/api/companies/${API_CONFIG.companyId}/agents/${local.apiData.uuid}/message`, {
     method: 'POST',
     body: JSON.stringify(body),
-  })
+  }, agentId)
+}
+
+/**
+ * Fetch issues list from Paperclip.
+ * Falls back to empty array if API is unreachable.
+ */
+export async function fetchIssues() {
+  try {
+    const data = await apiFetch(`/api/companies/${API_CONFIG.companyId}/issues`)
+    return Array.isArray(data) ? data : []
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('[agentService] fetchIssues failed:', err.message)
+    return []
+  }
+}
+
+/**
+ * Fetch a single agent by its Paperclip UUID.
+ * Uses the company-scoped endpoint for CORS compatibility.
+ * @param {string} uuid — Paperclip agent UUID
+ * @param {string} localId — local agent id for key lookup
+ * @returns {object} API agent data
+ */
+export async function fetchAgentByUuid(uuid, localId) {
+  const data = await apiFetch(`/api/companies/${API_CONFIG.companyId}/agents/${uuid}`, {}, localId)
+  return data
 }
 
 // ─── Polling hook helper ──────────────────────────────────────────────────────

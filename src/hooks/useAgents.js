@@ -1,24 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { AGENTS } from '../agents'
-import { API_CONFIG } from '../api/agentService'
-
-const BASE = API_CONFIG.baseUrl
-const KEY = API_CONFIG.apiKey
-const CID = API_CONFIG.companyId
-
-async function fetchAgentsRaw() {
-  const res = await fetch(`${BASE}/api/companies/${CID}/agents`, {
-    headers: {
-      Authorization: `Bearer ${KEY}`,
-      'Content-Type': 'application/json',
-    },
-  })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return res.json()
-}
+import { fetchAgentsIndividual } from '../api/agentService'
 
 function mergeApiWithLocal(apiList) {
   if (!Array.isArray(apiList)) return AGENTS
+
+  // If already merged by fetchAgentsIndividual, return as-is
+  if (apiList.length > 0 && apiList[0].apiData?.uuid && apiList[0].skills) {
+    return apiList
+  }
 
   // Build a lookup from API UUID → our local agent
   const localByUuid = new Map()
@@ -83,7 +73,7 @@ export default function useAgents(pollMs = 5000) {
 
   const refresh = useCallback(async () => {
     try {
-      const apiList = await fetchAgentsRaw()
+      const apiList = await fetchAgentsIndividual()
       const merged = mergeApiWithLocal(apiList)
       setAgents(merged)
       setError(null)

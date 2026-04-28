@@ -1,6 +1,13 @@
 import { useState } from 'react'
 import { COLORS, RARITY, STATUS_LABEL, RELATION_GRAD, initials, StarRow } from './constants.jsx'
 import { INSTRUCTIONS } from './agentInstructions'
+import { getAgentApiKey } from './api/agentKeys'
+import { getAgentImage } from './agentImages'
+
+function maskKey(key) {
+  if (!key || key.length < 24) return '—'
+  return key.slice(0, key.length - 24) + '************************'
+}
 
 function MarkdownBlock({ text }) {
   if (!text) return <div className="inst-body">No instructions defined.</div>
@@ -58,6 +65,8 @@ export default function AgentDetail({ agent, agents, onOpenAgent, onBack }) {
   const [tab, setTab] = useState('skills')
   const color = COLORS[agent.id] || 'violet'
   const rar = RARITY[agent.id] || { tier: 'SR', stars: 4 }
+  const maskedKey = maskKey(getAgentApiKey(agent.id))
+  const heroImg = getAgentImage(agent.id)
 
   return (
     <div className="main">
@@ -72,7 +81,11 @@ export default function AgentDetail({ agent, agents, onOpenAgent, onBack }) {
                 <StarRow n={rar.stars} />
               </div>
               <div className="h-lvl lvl-pill">Lv {agent.level}</div>
-              <div className="h-init">{initials(agent.name)}</div>
+              {heroImg ? (
+                <img src={heroImg} alt={agent.name} className="hero-portrait-img" />
+              ) : (
+                <div className="h-init">{initials(agent.name)}</div>
+              )}
             </div>
             <div className="hero-foot">
               <h2>{agent.name}</h2>
@@ -194,6 +207,31 @@ export default function AgentDetail({ agent, agents, onOpenAgent, onBack }) {
                   <div className="inst-row">
                     <span className="inst-lbl">Can Create Agents</span>
                     <span className="inst-val">{agent.apiData?.permissions?.canCreateAgents ? 'YES' : 'NO'}</span>
+                  </div>
+                </div>
+
+                <div className="api-key-editor" style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div className="inst-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
+                    <span className="inst-lbl">API Key</span>
+                    <div
+                      className="mono"
+                      style={{
+                        background: 'rgba(0,0,0,0.35)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: 6,
+                        padding: '6px 10px',
+                        color: 'var(--text-dim)',
+                        fontSize: 11,
+                        fontFamily: 'JetBrains Mono, monospace',
+                        width: '100%',
+                        letterSpacing: '0.04em',
+                      }}
+                    >
+                      {maskedKey}
+                    </div>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                      Key is hidden for security · fetched from agentKeys config
+                    </span>
                   </div>
                 </div>
               </div>
