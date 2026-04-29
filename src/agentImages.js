@@ -16,6 +16,7 @@ const AGENT_IMAGES = {
   doppelganger:new URL('./imageAgents/Doppelganger.png', import.meta.url).href,
   eddga:       new URL('./imageAgents/Eddga.png', import.meta.url).href,
   osiris:      new URL('./imageAgents/Osiris.png', import.meta.url).href,
+  kield01:     new URL('./imageAgents/Kiel D-01.png', import.meta.url).href,
 }
 
 export function getAgentImage(agentId) {

@@ -10,7 +10,7 @@ const STORAGE_KEY = 'hermoso_agent_api_keys'
 // Default API keys for each agent (assigned 2026-04-28)
 const DEFAULT_AGENT_KEYS = {
   kafra:       'pcp_f6af87a3c28fdbbbb4200ae38a6a69d4bfcb50e837aa3d20',
-  satanmorroc: 'pcp_c4efebee09b45a3119c95375af0c0f3130221ea259d08256',
+  satanmorroc: 'pcp_4b51a8d591ad50605b76cdded4009316c01f554a3ab65db5',
   thanatos:    'pcp_2d6bf8784f8b93be5cc05de98dc43f4e56a750e3fe4da9a9',
   valkyrie:    'pcp_c0ecff5b5a124551887da67cc9066c7c84604557dbc768ec',
   amonra:      'pcp_0c26765f1b70b895822c2e39c4dcf8e781a2f840092f7da7',
@@ -21,6 +21,7 @@ const DEFAULT_AGENT_KEYS = {
   doppelganger:'pcp_bfc5355938584b12df2ae235cc3f5212317b483a411e3f30',
   eddga:       'pcp_8325c19881b608367e7c07311a1a2b7e8f72b84ebaecce0a',
   osiris:      'pcp_ba96c964b9c27f025e2ba4da4733eaf8db4c9d16480ef6d8',
+  kield01:     'pcp_5103d7d854800011503daaeab6bef67eb073d8e5281e6e06',
 }
 
 /** @returns {Record<string, string>} */

@@ -15,6 +15,7 @@ function deriveSprite(name) {
   if (key.includes('eddga')) return 'eddga'
   if (key.includes('samurai')) return 'samurai'
   if (key.includes('turtle')) return 'turtle'
+  if (key.includes('kiel')) return 'kield01'
   return 'baphomet'
 }
 
@@ -32,6 +33,7 @@ function deriveClass(name, title) {
   if (key.includes('eddga')) return 'Tiger King'
   if (key.includes('samurai')) return 'Specter Samurai'
   if (key.includes('turtle')) return 'Turtle General'
+  if (key.includes('kiel')) return 'Design Forge'
   return 'Agent'
 }
 
@@ -95,7 +97,7 @@ export const AGENTS = [
     ],
     series: [94, 92, 96, 95, 98, 97, 99, 98, 96, 99, 100, 99],
     apiData: {
-      uuid: 'bf06e469-58f3-4335-b4ff-2713b98cca8a',
+      uuid: 'd085d46d-87fe-4bfe-810f-c5f0399e237c',
       companyId: '39e68b6f-0d66-4033-9899-e6b94474bcfe',
       role: 'general',
       reportsTo: '663dabab-a96b-4b03-9a8c-faa6b3f83210',
@@ -169,7 +171,7 @@ export const AGENTS = [
       uuid: '1d3fa21c-ed1c-42ab-87ad-4ce81985c402',
       companyId: '39e68b6f-0d66-4033-9899-e6b94474bcfe',
       role: 'general',
-      reportsTo: 'bf06e469-58f3-4335-b4ff-2713b98cca8a',
+      reportsTo: 'd085d46d-87fe-4bfe-810f-c5f0399e237c',
       capabilities: 'Owns revenue generation, client relationships, sales pipeline, content marketing, and lead generation. Routes to Sales, Researcher, Client Success, and Marketing sub-agents.',
       adapterType: 'claude_local',
       adapterConfig: { model: 'claude-sonnet-4-6', graceSec: 15, timeoutSec: 0, maxTurnsPerRun: 1000 },
@@ -237,7 +239,7 @@ export const AGENTS = [
       uuid: 'dde25386-f936-45b4-b009-da34b59b5e57',
       companyId: '39e68b6f-0d66-4033-9899-e6b94474bcfe',
       role: 'general',
-      reportsTo: 'bf06e469-58f3-4335-b4ff-2713b98cca8a',
+      reportsTo: 'd085d46d-87fe-4bfe-810f-c5f0399e237c',
       capabilities: 'Owns internal operations: infrastructure, automation, scheduling, documentation, invoicing, contracts, financial health.',
       adapterType: 'claude_local',
       adapterConfig: { model: 'claude-sonnet-4-6', graceSec: 15, timeoutSec: 0, maxTurnsPerRun: 1000 },
@@ -818,6 +820,63 @@ export const AGENTS = [
       createdAt: '2026-04-27T06:48:13.083Z',
       updatedAt: '2026-04-27T07:28:08.571Z',
       urlKey: 'turtle-general-admin',
+    },
+  },
+  {
+    id: 'kield01',
+    name: 'Kiel D-01',
+    title: 'UI/UX Designer & Full Stack Developer',
+    sprite: 'kield01',
+    platform: 'Hermes AI',
+    level: 72,
+    class: 'Design Forge',
+    status: 'idle',
+    task: 'UX research · High-fidelity UI design · Frontend development (React/Next.js) · Full-stack development · Client product delivery',
+    hp: 100,
+    mp: 85,
+    tokens: 0,
+    tokenLimit: 8.0,
+    skills: [
+      { name: 'Pixel Forge', icon: '✦', lvl: 9, max: 10, state: 'unlocked' },
+      { name: 'Wireframe Weave', icon: '◇', lvl: 9, max: 10, state: 'unlocked' },
+      { name: 'Code Craft', icon: '⟨/⟩', lvl: 8, max: 10, state: 'unlocked' },
+      { name: 'User Insight', icon: '◉', lvl: 8, max: 10, state: 'unlocked' },
+      { name: 'Design System', icon: '◧', lvl: 7, max: 10, state: 'unlocked' },
+      { name: 'React Mastery', icon: '⚛', lvl: 8, max: 10, state: 'unlocked' },
+      { name: 'Full Stack', icon: '⬡', lvl: 7, max: 10, state: 'unlocked' },
+      { name: 'Prototyping', icon: '▶', lvl: 6, max: 10, state: 'unlocked' },
+    ],
+    tools: [
+      { name: 'Figma MCP', icon: 'F', meta: 'r/w · 22ms' },
+      { name: 'React Dev', icon: '⚛', meta: 'r/w · 8ms' },
+      { name: 'Github MCP', icon: 'G', meta: 'r/w · 38ms' },
+      { name: 'Notion MCP', icon: 'N', meta: 'r/w · 14ms' },
+    ],
+    relations: [
+      { name: 'Valkyrie', type: 'reports-to', count: 0, sprite: 'valkyrie' },
+    ],
+    memory: [
+      { tag: 'directive', time: 'NOW', body: 'Own the full product surface from wireframe to deployed application.' },
+    ],
+    convo: [],
+    series: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    apiData: {
+      uuid: 'ea1b891d-e2ec-4759-a617-2d9b160e8c0d',
+      companyId: '39e68b6f-0d66-4033-9899-e6b94474bcfe',
+      role: 'general',
+      reportsTo: '1d3fa21c-ed1c-42ab-87ad-4ce81985c402',
+      capabilities: 'Owns the full product surface from wireframe to deployed application. Designs and builds beautiful, functional products. Responsible for UX research, high-fidelity UI design, frontend development (React/Next.js), full-stack development, and client product delivery.',
+      adapterType: 'claude_local',
+      adapterConfig: { model: 'claude-sonnet-4-6', graceSec: 15, timeoutSec: 0, maxTurnsPerRun: 1000 },
+      runtimeConfig: { heartbeat: { enabled: false, wakeOnDemand: true } },
+      budgetMonthlyCents: 0,
+      spentMonthlyCents: 0,
+      pauseReason: null,
+      pausedAt: null,
+      lastHeartbeatAt: null,
+      createdAt: '2026-04-29T17:21:56.925Z',
+      updatedAt: '2026-04-29T17:26:43.074Z',
+      urlKey: 'kiel-d-01-ui-ux-designer',
     },
   },
 ]

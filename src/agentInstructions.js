@@ -20,7 +20,8 @@ import osirisMd         from './instructions/osiris/AGENTS.md?raw'
 import darklordMd       from './instructions/darklord/AGENTS.md?raw'
 import eddgaMd          from './instructions/eddga/AGENTS.md?raw'
 import samuraiMd        from './instructions/samurai/AGENTS.md?raw'
-import turtleMd         from './instructions/turtle/AGENTS.md?raw'
+import turtleMd        from './instructions/turtle/AGENTS.md?raw'
+import kield01Md       from './instructions/kield01/AGENTS.md?raw'
 
 export const INSTRUCTIONS = {
   kafra:         kafraMd,
@@ -35,6 +36,7 @@ export const INSTRUCTIONS = {
   eddga:         eddgaMd,
   samurai:       samuraiMd,
   turtle:        turtleMd,
+  kield01:       kield01Md,
 }
 
 /**

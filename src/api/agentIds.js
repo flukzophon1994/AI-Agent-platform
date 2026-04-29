@@ -10,7 +10,7 @@
 
 const AGENT_UUIDS = {
   kafra:         '663dabab-a96b-4b03-9a8c-faa6b3f83210',
-  satanmorroc:   '739d17d1-7036-46ff-bab1-5ed963b45276',
+  satanmorroc:   'd085d46d-87fe-4bfe-810f-c5f0399e237c',
   thanatos:      'dde25386-f936-45b4-b009-da34b59b5e57',
   valkyrie:      '1d3fa21c-ed1c-42ab-87ad-4ce81985c402',
   baphomet:      '6cb0a6dd-2543-4454-8129-3decfde0a227',
@@ -21,6 +21,7 @@ const AGENT_UUIDS = {
   eddga:         'eab0143f-deee-40c8-ba28-79c3fed1cc75',
   samurai:       '1db8f270-fd00-4af7-a740-5eec81dbf021',
   turtle:        'd36259ad-391c-4ce2-9b3e-7bcc0950e844',
+  kield01:       'ea1b891d-e2ec-4759-a617-2d9b160e8c0d',
 }
 
 /** URL keys as defined in Paperclip (slug-style identifiers) */
@@ -37,6 +38,7 @@ const AGENT_URL_KEYS = {
   eddga:         'eddga-marketing',
   samurai:       'samurai-specter-ops',
   turtle:        'turtle-general-admin',
+  kield01:       'kiel-d-01-ui-ux-designer',
 }
 
 /** Full API display names (with role suffixes) */
@@ -53,6 +55,7 @@ const AGENT_API_NAMES = {
   eddga:         'Eddga (Marketing)',
   samurai:       'Samurai Specter (Ops)',
   turtle:        'Turtle general (Admin)',
+  kield01:       'Kiel D-01 (UI/UX designer)',
 }
 
 /**

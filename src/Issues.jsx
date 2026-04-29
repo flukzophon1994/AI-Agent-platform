@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import IssuePopup from './IssuePopup'
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                         */
@@ -7,7 +8,7 @@ const API_URL =
   '/api/companies/39e68b6f-0d66-4033-9899-e6b94474bcfe/issues'
 
 const HEADERS = {
-  Authorization: 'Bearer pcp_c4efebee09b45a3119c95375af0c0f3130221ea259d08256',
+  Authorization: 'Bearer pcp_4b51a8d591ad50605b76cdded4009316c01f554a3ab65db5',
   'Content-Type': 'application/json',
 }
 
@@ -152,12 +153,13 @@ function IconGroup(props) {
 /* ------------------------------------------------------------------ */
 /*  Main component                                                    */
 /* ------------------------------------------------------------------ */
-export default function Issues() {
+export default function Issues({ agents = [] }) {
   const [raw, setRaw] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [query, setQuery] = useState('')
   const [viewMode, setViewMode] = useState('list') // 'list' | 'board'
+  const [selectedIssue, setSelectedIssue] = useState(null)
 
   /* ---- fetch + poll every 3s ---- */
   useEffect(() => {
@@ -227,9 +229,12 @@ export default function Issues() {
     return (
       <a
         key={issue.id || idx}
-        className="issue-row"
+        className="issue-row issue-row--clickable"
         href="#"
-        onClick={(e) => e.preventDefault()}
+        onClick={(e) => { e.preventDefault(); setSelectedIssue(issue) }}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedIssue(issue) } }}
       >
         {/* Mobile status dot */}
         <span className="issue-row__mobile-dot">
@@ -353,6 +358,11 @@ export default function Issues() {
           </div>
         )}
       </div>
+
+      {/* Issue Detail Popup */}
+      {selectedIssue && (
+        <IssuePopup issue={selectedIssue} onClose={() => setSelectedIssue(null)} agents={agents} />
+      )}
     </div>
   )
 }

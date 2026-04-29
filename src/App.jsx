@@ -8,6 +8,7 @@ import AgentDetail from './Detail'
 import Issues from './Issues'
 import Memory from './Memory'
 import NewIssuePopup from './NewIssuePopup'
+import Projects from './Projects'
 
 const TWEAK_DEFAULTS = {
   scanlines: true,
@@ -23,6 +24,7 @@ const PM_ORIGIN = import.meta.env.VITE_PARENT_ORIGIN || window.location.origin |
 const VIEW_TO_PATH = {
   dashboard: '/dashboard',
   agents:    '/agents',
+  projects:  '/projects',
   missions:  '/issues',
   office:    '/tower',
   detail:    '/agent',       // + /:id
@@ -33,6 +35,7 @@ const VIEW_TO_PATH = {
 function pathToView(pathname) {
   if (pathname === '/' || pathname === '/dashboard') return { view: 'dashboard', activeId: null }
   if (pathname === '/agents')                    return { view: 'agents', activeId: null }
+  if (pathname === '/projects')                  return { view: 'projects', activeId: null }
   if (pathname === '/issues')                    return { view: 'missions', activeId: null }
   if (pathname === '/tower')                     return { view: 'office', activeId: null }
   if (pathname === '/memory')                    return { view: 'memory', activeId: null }
@@ -77,6 +80,7 @@ function Sidebar({ view, goTo, agentCount, inProgressCount, onNewIssue }) {
           <div className="nav-heading">Overview</div>
           <NavItem id="dashboard" icon="◧" label="Dashboard" badge={inProgressCount} />
           <NavItem id="agents" icon="⬢" label="Agents" badge={agentCount} />
+          <NavItem id="projects" icon="◈" label="Projects" />
         </div>
       </nav>
 
@@ -255,7 +259,8 @@ export default function App() {
               onRefresh={refresh}
             />
           )}
-          {view === 'missions' && <Issues />}
+          {view === 'projects' && <Projects />}
+          {view === 'missions' && <Issues agents={agents} />}
           {view === 'memory' && <Memory />}
           {view === 'office' && (
             <Office

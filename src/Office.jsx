@@ -35,7 +35,7 @@ const FLOORS = [
     label: 'Working Floor',
     sub: 'Strategy & Ops · 8 chiefs · East & West wings',
     wings: [
-      { side: 'west', label: 'WEST WING', ids: ['osiris', 'doppelganger', 'eddga', 'darklord'] },
+      { side: 'west', label: 'WEST WING', ids: ['osiris', 'doppelganger', 'eddga', 'darklord', 'kield01'] },
       { side: 'east', label: 'EAST WING', ids: ['baphomet', 'amonra', 'samurai', 'turtle'] },
     ],
     torchCount: 6,
@@ -65,6 +65,7 @@ const LINES = {
   eddga: ['*roar* Variant 7 wins.', 'CTR +23% vs control.', 'Brand voice locked.', 'Launch in 5 days.', 'Cut the hype words.'],
   samurai: ['Honor in service.', 'Travel booked: SFO.', 'Reservation held.', 'Quiet step taken.', 'Bushido compels me.'],
   turtle: ['Slow is smooth.', 'Holding the line.', 'No tickets in queue.', 'SOP confirmed.', 'Standing post.'],
+  kield01: ['Pixel-perfect.', 'Refactoring components...', 'Design system v2.', 'Accessibility audit done.', 'Prototype ready.'],
 }
 
 /**

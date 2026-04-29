@@ -1,34 +1,9 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import { COLORS, RARITY, initials, StarRow } from './constants.jsx'
 import { getAgentImage } from './agentImages'
-import { fetchIssues, fetchIssueById, fetchIssueComments, fetchIssueDocuments, fetchDashboard } from './api/agentService'
+import { fetchIssues, fetchDashboard } from './api/agentService'
 import { AGENT_UUIDS } from './api/agentIds'
-
-/* ── Issue status colors (same as Issues page) ────────────────────── */
-
-const ISSUE_STATUS_META = {
-  backlog:    { colour: '#9ca3af', label: 'Backlog' },
-  todo:       { colour: '#3b82f6', label: 'Todo' },
-  inprogress: { colour: '#eab308', label: 'In Progress' },
-  inreview:   { colour: '#8b5cf6', label: 'In Review' },
-  done:       { colour: '#4ade80', label: 'Done' },
-  cancelled:  { colour: '#6b7280', label: 'Cancelled' },
-  blocked:    { colour: '#ef4444', label: 'Blocked' },
-}
-
-function resolveIssueStatus(issue) {
-  const raw = (issue.status ?? '').toString().toLowerCase().replace(/[-_\s]/g, '')
-  if (ISSUE_STATUS_META[raw]) return ISSUE_STATUS_META[raw]
-  if (raw.includes('progress')) return ISSUE_STATUS_META.inprogress
-  if (raw.includes('review'))   return ISSUE_STATUS_META.inreview
-  if (raw.includes('block'))    return ISSUE_STATUS_META.blocked
-  if (raw.includes('cancel'))   return ISSUE_STATUS_META.cancelled
-  if (raw === 'done' || raw === 'closed' || raw === 'complete') return ISSUE_STATUS_META.done
-  if (raw === 'open' || raw === 'new') return ISSUE_STATUS_META.todo
-  return { colour: '#9ca3af', label: issue.status || 'Unknown' }
-}
+import IssuePopup, { resolveIssueStatus } from './IssuePopup'
 
 /* ── Helpers ───────────────────────────────────────────────────────── */
 
@@ -235,185 +210,6 @@ function MiniAgentCard({ agent, onOpen }) {
   )
 }
 
-/* ── Issue Detail Popup ─────────────────────────────────────────────── */
-
-function IssuePopup({ issue, onClose, agents }) {
-  const [detail, setDetail] = useState(null)
-  const [comments, setComments] = useState([])
-  const [documents, setDocuments] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    if (!issue?.id) return
-    let cancelled = false
-    setLoading(true)
-
-    Promise.all([
-      fetchIssueById(issue.id),
-      fetchIssueComments(issue.id),
-      fetchIssueDocuments(issue.id),
-    ]).then(([issueData, commentsData, documentsData]) => {
-      if (!cancelled) {
-        setDetail(issueData)
-        setComments(commentsData)
-        setDocuments(documentsData)
-        setLoading(false)
-      }
-    }).catch(() => {
-      if (!cancelled) setLoading(false)
-    })
-
-    return () => { cancelled = true }
-  }, [issue?.id])
-
-  // Close on Escape
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
-  const src = detail || issue
-  const resolvedStatus = resolveIssueStatus(src)
-  const identifier = src.identifier || src.key || src.number || `#${issue.id || ''}`
-  const title = src.title || src.name || src.summary || 'Untitled'
-
-  // Find agent name
-  const agentId = src.assigneeAgentId || issue.assigneeAgentId
-  const agentName = agents.find((a) =>
-    a.apiData?.id === agentId || a.apiData?.uuid === agentId
-  )?.name || null
-
-  // Get AI response from comments (first comment with body)
-  const aiComment = comments.length > 0 ? comments[0] : null
-  const commentBody = aiComment?.body || null
-
-  // Fallback from detail fields
-  const fallbackResponse = detail
-    ? (detail.feedback || detail.result || detail.output || detail.response || detail.answer ||
-       detail.body || detail.resolution || detail.aiResponse || detail.message || null)
-    : null
-
-  const hasComment = !!commentBody
-  const hasDocs = documents.length > 0
-  const hasFallback = !!fallbackResponse
-  const hasDescription = !!issue.description
-  const hasAnyContent = hasComment || hasDocs || hasFallback || hasDescription
-
-  return (
-    <div className="issue-popup-overlay" onClick={onClose}>
-      <div className="issue-popup" onClick={(e) => e.stopPropagation()}>
-        <div className="issue-popup-header">
-          <div>
-            <span className="issue-popup-id mono">{identifier}</span>
-            <span className="issue-popup-status" style={{ background: `${resolvedStatus.colour}22`, color: resolvedStatus.colour }}>
-              {resolvedStatus.label}
-            </span>
-          </div>
-          <button className="issue-popup-close" onClick={onClose} aria-label="Close">×</button>
-        </div>
-        <h3 className="issue-popup-title">{title}</h3>
-
-        <div className="issue-popup-meta">
-          {agentName && (
-            <span className="issue-popup-meta-item">
-              <span className="issue-popup-meta-label">Agent</span>
-              <span>{agentName}</span>
-            </span>
-          )}
-          {(src.priority || issue.priority) && (
-            <span className="issue-popup-meta-item">
-              <span className="issue-popup-meta-label">Priority</span>
-              <span style={{ textTransform: 'capitalize' }}>{src.priority || issue.priority}</span>
-            </span>
-          )}
-          {(src.createdAt || src.startedAt || issue.createdAt || issue.started_at) && (
-            <span className="issue-popup-meta-item">
-              <span className="issue-popup-meta-label">Created</span>
-              <span className="mono">{new Date(src.createdAt || src.startedAt || issue.createdAt || issue.started_at).toLocaleString()}</span>
-            </span>
-          )}
-          {(src.completedAt || src.completed_at || issue.completedAt || issue.completed_at) && (
-            <span className="issue-popup-meta-item">
-              <span className="issue-popup-meta-label">Completed</span>
-              <span className="mono">{new Date(src.completedAt || src.completed_at || issue.completedAt || issue.completed_at).toLocaleString()}</span>
-            </span>
-          )}
-        </div>
-
-        <div className="issue-popup-divider" />
-
-        <div className="issue-popup-body">
-          {loading ? (
-            <div className="issue-popup-loading">
-              <span className="issue-popup-spinner" />
-              Loading AI response…
-            </div>
-          ) : hasAnyContent ? (
-            <>
-              {/* Comment (AI response) */}
-              {hasComment && (
-                <div className="issue-popup-response">
-                  <div className="issue-popup-response-label">
-                    AI Response
-                    {aiComment.createdAt && (
-                      <span className="issue-popup-response-time">
-                        {new Date(aiComment.createdAt).toLocaleString()}
-                      </span>
-                    )}
-                  </div>
-                  <div className="issue-popup-response-content">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{commentBody}</ReactMarkdown>
-                  </div>
-                </div>
-              )}
-
-              {/* Documents (plans, reports, etc.) */}
-              {hasDocs && documents.map((doc, idx) => (
-                <div className="issue-popup-response" key={doc.id || idx}>
-                  <div className="issue-popup-response-label">
-                    📄 {doc.title || doc.key || `Document ${idx + 1}`}
-                    {doc.format && (
-                      <span className="issue-popup-response-time">{doc.format}</span>
-                    )}
-                  </div>
-                  <div className="issue-popup-response-content">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{doc.body || ''}</ReactMarkdown>
-                  </div>
-                </div>
-              ))}
-
-              {/* Fallback if no comment or docs */}
-              {!hasComment && !hasDocs && hasFallback && (
-                <div className="issue-popup-response">
-                  <div className="issue-popup-response-label">AI Response</div>
-                  <div className="issue-popup-response-content">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{fallbackResponse}</ReactMarkdown>
-                  </div>
-                </div>
-              )}
-
-              {/* Description as last resort */}
-              {!hasComment && !hasDocs && !hasFallback && hasDescription && (
-                <div className="issue-popup-response">
-                  <div className="issue-popup-response-label">Description</div>
-                  <div className="issue-popup-response-content">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{issue.description}</ReactMarkdown>
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="issue-popup-empty">
-              No AI response available yet.
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 /* ── Dashboard (Overview / Command Center) ─────────────────────────── */
 
 export default function MissionControl({ agents, onOpenAgent, loading, error, lastUpdated, onRefresh }) {
@@ -485,7 +281,7 @@ export default function MissionControl({ agents, onOpenAgent, loading, error, la
       try {
         const res = await fetch(
           '/api/companies/39e68b6f-0d66-4033-9899-e6b94474bcfe/approvals?status=pending',
-          { headers: { Authorization: 'Bearer pcp_c4efebee09b45a3119c95375af0c0f3130221ea259d08256', 'Content-Type': 'application/json' } }
+          { headers: { Authorization: 'Bearer pcp_4b51a8d591ad50605b76cdded4009316c01f554a3ab65db5', 'Content-Type': 'application/json' } }
         )
         if (!res.ok) return
         const data = await res.json()

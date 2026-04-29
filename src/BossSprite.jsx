@@ -644,6 +644,49 @@ const PAL_SATAN = {
   B: '#3a1248', // dark purple cloak/wings
 };
 
+// === KIEL D-01 (UI/UX Designer) — hooded tech creator with visor ===
+const KIEL_D01 = [
+  '..............KKKKKK............',
+  '............KKDDDDDDKK..........',
+  '..........KKDDDDDDDDDDKK........',
+  '........KKDDDDDDDDDDDDDDKK......',
+  '.......KDDDDDDDDDDDDDDDDDK......',
+  '......KDDDDDDDDDDDDDDDDDDDK.....',
+  '......KDDDDDDDDDDDDDDDDDDDK.....',
+  '.....KDDDDDDDDDDDDDDDDDDDDDK....',
+  '.....KDDDDDDDDDDDDDDDDDDDDDK....',
+  '.....KDDDDDDDDWWWWWWDDDDDDDK....',
+  '.....KDDDDDDKWSSSSSSWKDDDDDK....',
+  '.....KDDDDDDKWSSCCSSWKDDDDDK....',
+  '.....KDDDDDDKWSSCCSSWKDDDDDK....',
+  '.....KDDDDDDKWWWWWWWKDDDDDDK....',
+  '.....KDDDDDDDKBBBBBKDDDDDDDK....',
+  '.....KDDDDDDDKBWWWBKDDDDDDDK....',
+  '.....KDDDDDDDKBWWWBKDDDDDDDK....',
+  '.....KDDDDDDDKBWWWBKDDDDDDDK....',
+  '......KDDDDDDKBWWWBKDDDDDDK.....',
+  '......KDDDDDKKBWWWBKKDDDDDK.....',
+  '.......KDDDDKBAAAAAKDDDDDK......',
+  '........KDDDKBAAAAKDDDDDK.......',
+  '.........KDDKBBBBBKDDDDK........',
+  '..........KDKBBBBBKDDDK.........',
+  '...........KBBBBBBBKDK..........',
+  '............KBBBBBBKK...........',
+  '.............KBBBBBK............',
+  '..............KBBBK.............',
+  '...............KKK..............',
+  '................................',
+];
+const PAL_KIEL_D01 = {
+  K: '#0a0309', // black outline
+  D: '#1e3a5f', // dark blue hood
+  W: '#e0f2fe', // white visor
+  S: '#60a5fa', // light blue visor glow
+  C: '#0ea5e9', // cyan eye core
+  B: '#2dd4bf', // teal scarf/collar
+  A: '#94a3b8', // silver chest plate
+};
+
 const SPRITES = {
   baphomet: { rows: DEMON_LORD, palette: PAL_DEMON },
   darklord: { rows: DARK_LORD, palette: PAL_DARK_LORD },
@@ -659,6 +702,7 @@ const SPRITES = {
   samurai: { rows: SAMURAI, palette: PAL_SAMURAI },
   turtle: { rows: TURTLE, palette: PAL_TURTLE },
   satanmorroc: { rows: SATAN_MORROC, palette: PAL_SATAN },
+  kield01: { rows: KIEL_D01, palette: PAL_KIEL_D01 },
 };
 
 function BossSprite({ which, scale = 4, glow = true }) {

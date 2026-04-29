@@ -16,7 +16,7 @@ const API_CONFIG = {
   baseUrl: import.meta.env.DEV
     ? ''
     : (import.meta.env.VITE_API_BASE_URL || 'https://paperclip-yom5.srv1508704.hstgr.cloud'),
-  apiKey: import.meta.env.VITE_API_KEY || 'pcp_c4efebee09b45a3119c95375af0c0f3130221ea259d08256',
+  apiKey: import.meta.env.VITE_API_KEY || 'pcp_4b51a8d591ad50605b76cdded4009316c01f554a3ab65db5',
   companyId: import.meta.env.VITE_COMPANY_ID || '39e68b6f-0d66-4033-9899-e6b94474bcfe',
   pollInterval: import.meta.env.VITE_POLL_INTERVAL ? Number(import.meta.env.VITE_POLL_INTERVAL) : 3000,
 }
@@ -264,11 +264,85 @@ export async function createIssue(body) {
 export async function fetchProjects() {
   try {
     const data = await apiFetch(`/api/companies/${API_CONFIG.companyId}/projects`)
-    return Array.isArray(data) ? data : []
+    // API may return { value: [...], Count: N } or a plain array
+    if (Array.isArray(data?.value)) return data.value
+    if (Array.isArray(data)) return data
+    return []
   } catch (err) {
     console.warn('[agentService] fetchProjects failed:', err.message)
     return []
   }
+}
+
+/**
+ * Fetch a single project by ID with full details.
+ * GET /api/projects/{projectId}
+ */
+export async function fetchProjectById(projectId) {
+  try {
+    const data = await apiFetch(`/api/projects/${projectId}`)
+    return data
+  } catch (err) {
+    console.warn('[agentService] fetchProjectById failed:', err.message)
+    return null
+  }
+}
+
+/**
+ * Create a new project via Paperclip API.
+ * POST /api/companies/{companyId}/projects
+ * @param {object} body — { name, description, color, status, goalId, targetDate, ... }
+ * @returns {object} created project
+ */
+export async function createProject(body) {
+  return apiFetch(`/api/companies/${API_CONFIG.companyId}/projects`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+/**
+ * Update an existing project via Paperclip API.
+ * PATCH /api/projects/{projectId}
+ * @param {string} projectId — Paperclip project UUID
+ * @param {object} body — fields to update
+ * @returns {object} updated project
+ */
+export async function updateProject(projectId, body) {
+  return apiFetch(`/api/projects/${projectId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+}
+
+/**
+ * Fetch goals list from Paperclip.
+ * GET /api/companies/{companyId}/goals
+ * Returns array of { id, title, ... }
+ */
+export async function fetchGoals() {
+  try {
+    const data = await apiFetch(`/api/companies/${API_CONFIG.companyId}/goals`)
+    if (Array.isArray(data?.value)) return data.value
+    if (Array.isArray(data)) return data
+    return []
+  } catch (err) {
+    console.warn('[agentService] fetchGoals failed:', err.message)
+    return []
+  }
+}
+
+/**
+ * Create a new goal via Paperclip API.
+ * POST /api/companies/{companyId}/goals
+ * @param {object} body — { title, ... }
+ * @returns {object} created goal
+ */
+export async function createGoal(body) {
+  return apiFetch(`/api/companies/${API_CONFIG.companyId}/goals`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 }
 
 /**
