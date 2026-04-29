@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { COLORS, RARITY, initials, StarRow } from './constants.jsx'
 import { getAgentImage } from './agentImages'
-import { fetchIssues, fetchIssueById, fetchIssueComments, fetchIssueDocuments } from './api/agentService'
+import { fetchIssues, fetchIssueById, fetchIssueComments, fetchIssueDocuments, fetchDashboard } from './api/agentService'
+import { AGENT_UUIDS } from './api/agentIds'
 
 /* ── Issue status colors (same as Issues page) ────────────────────── */
 
@@ -423,6 +424,9 @@ export default function MissionControl({ agents, onOpenAgent, loading, error, la
   const [issuesUpdated, setIssuesUpdated] = useState(null)
   const issuesTimerRef = useRef()
 
+  // Dashboard API data
+  const [dashData, setDashData] = useState(null)
+
   const onlineCount = agents.filter((a) => a.status === 'running').length
   const pausedCount = agents.filter((a) => a.status === 'paused').length
   const workingCount = agents.filter((a) => a.status === 'working').length
@@ -450,6 +454,20 @@ export default function MissionControl({ agents, onOpenAgent, loading, error, la
     issuesTimerRef.current = setInterval(refreshIssues, 3000)
     return () => clearInterval(issuesTimerRef.current)
   }, [refreshIssues])
+
+  // Fetch dashboard stats from Paperclip API
+  useEffect(() => {
+    let cancelled = false
+    async function loadDash() {
+      try {
+        const data = await fetchDashboard()
+        if (!cancelled && data) setDashData(data)
+      } catch { /* ignore */ }
+    }
+    loadDash()
+    const id = setInterval(loadDash, 5000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [])
 
   // Count issues by status
   const inProgressCount = issues.filter((i) => {
@@ -481,11 +499,84 @@ export default function MissionControl({ agents, onOpenAgent, loading, error, la
     return () => { cancelled = true; clearInterval(id) }
   }, [])
 
-  // Mock chart data (14 days)
-  const runData = [0,0,0,0,0,0,0,0,0,0,0,12,16,9]
-  const issuePriorityData = [0,0,0,0,0,0,0,0,0,0,0,6,10,3]
-  const issueStatusData = [0,0,0,0,0,0,0,0,0,0,0,6,10,3]
-  const successRateData = [0,0,0,0,0,0,0,0,0,0,0,33,100,33]
+  // ── Chart data from real issues (last 14 days) ──
+  const DAYS = 14
+  const chartData = useMemo(() => {
+    // Build day buckets: [today-13, ..., today]
+    const now = new Date()
+    const days = []
+    for (let i = DAYS - 1; i >= 0; i--) {
+      const d = new Date(now)
+      d.setHours(0, 0, 0, 0)
+      d.setDate(d.getDate() - i)
+      days.push(d)
+    }
+
+    // Helper: get day-index for an ISO date string
+    function dayIdx(iso) {
+      if (!iso) return -1
+      const d = new Date(iso)
+      d.setHours(0, 0, 0, 0)
+      const diff = Math.round((d.getTime() - days[0].getTime()) / 86400000)
+      return diff >= 0 && diff < DAYS ? diff : -1
+    }
+
+    // Run Activity: issues created per day
+    const created = new Array(DAYS).fill(0)
+    // Issues by Priority: critical+high created per day
+    const criticalHigh = new Array(DAYS).fill(0)
+    // Issues by Status: completed per day
+    const completed = new Array(DAYS).fill(0)
+    // For success rate: created vs completed per day
+    const totalCreated = new Array(DAYS).fill(0)
+
+    issues.forEach((issue) => {
+      const ci = dayIdx(issue.createdAt)
+      if (ci >= 0) {
+        created[ci]++
+        totalCreated[ci]++
+        const p = (issue.priority || '').toLowerCase()
+        if (p === 'critical' || p === 'high') criticalHigh[ci]++
+      }
+      const di = dayIdx(issue.completedAt)
+      if (di >= 0) completed[di]++
+    })
+
+    // Success rate: % completed of total created per day
+    const successRate = days.map((_, i) => {
+      const total = issues.length // use overall completion rate
+      const done = issues.filter((iss) => {
+        const s = (iss.status || '').toLowerCase()
+        return s === 'done' || s === 'closed' || s === 'complete'
+      }).length
+      return total > 0 ? Math.round((done / total) * 100) : 0
+    })
+    // Make it vary per day based on completions that day
+    const successPerDay = days.map((_, i) => {
+      if (totalCreated[i] === 0 && completed[i] === 0) return 0
+      const dayTotal = totalCreated[i] || 1
+      return Math.min(100, Math.round((completed[i] / dayTotal) * 100))
+    })
+
+    // Format date labels
+    const fmt = (d) => `${d.getMonth() + 1}/${d.getDate()}`
+    const labelStart = fmt(days[0])
+    const labelEnd = fmt(days[DAYS - 1])
+
+    return {
+      created,
+      criticalHigh,
+      completed,
+      successPerDay,
+      labelStart,
+      labelEnd,
+    }
+  }, [issues])
+
+  const runData = chartData.created
+  const issuePriorityData = chartData.criticalHigh
+  const issueStatusData = chartData.completed
+  const successRateData = chartData.successPerDay
 
   return (
     <div className="main">
@@ -525,45 +616,65 @@ export default function MissionControl({ agents, onOpenAgent, loading, error, la
         </div>
       )}
 
-      {/* Summary Stats */}
-      <div className="dash-stats-row">
-        <StatTile
-          label="Agents Enabled"
-          value={agents.length}
-          sub={`${onlineCount} online · ${pausedCount} paused`}
-          icon="◈"
-          tone=""
-        />
-        <StatTile
-          label="Tasks In Progress"
-          value={inProgressCount}
-          sub={`${issues.length} total issues · ${closedIssues} done`}
-          icon="▷"
-          tone="gold"
-        />
-        <StatTile
-          label="Month Spend"
-          value={`$${(totalSpent / 100).toFixed(2)}`}
-          sub={totalBudget ? `of $${(totalBudget / 100).toFixed(2)}` : 'no budget set'}
-          icon="$"
-          tone="green"
-        />
-        <StatTile
-          label="Pending Approvals"
-          value={pendingApprovals}
-          sub={pendingApprovals > 0 ? 'Awaiting review' : 'All clear'}
-          icon="◉"
-          tone={pendingApprovals > 0 ? 'red' : ''}
-        />
-      </div>
+      {/* Summary Stats — powered by Paperclip Dashboard API */}
+      {(() => {
+        const da = dashData?.agents
+        const dt = dashData?.tasks
+        const dc = dashData?.costs
+        const dp = dashData?.pendingApprovals
+        const db = dashData?.budgets
+        const agentActive   = da?.active   ?? agents.length
+        const agentRunning  = da?.running  ?? onlineCount
+        const agentPaused   = da?.paused   ?? pausedCount
+        const taskProgress  = dt?.inProgress ?? inProgressCount
+        const taskOpen      = dt?.open      ?? openIssues
+        const taskBlocked   = dt?.blocked   ?? 0
+        const taskDone      = dt?.done      ?? closedIssues
+        const spendCents    = dc?.monthSpendCents          ?? totalSpent
+        const budgetCents   = dc?.monthBudgetCents         ?? totalBudget
+        const utilPct       = dc?.monthUtilizationPercent   ?? (budgetCents ? Math.round((spendCents / budgetCents) * 100) : 0)
+        const approvals     = dp ?? pendingApprovals
+        return (
+          <div className="dash-stats-row">
+            <StatTile
+              label="Agents Active"
+              value={agentActive}
+              sub={`${agentRunning} running · ${agentPaused} paused`}
+              icon="◈"
+              tone=""
+            />
+            <StatTile
+              label="Tasks In Progress"
+              value={taskProgress}
+              sub={`${taskOpen} open · ${taskBlocked} blocked · ${taskDone} done`}
+              icon="▷"
+              tone="gold"
+            />
+            <StatTile
+              label="Month Spend"
+              value={`$${(spendCents / 100).toFixed(2)}`}
+              sub={budgetCents ? `of $${(budgetCents / 100).toFixed(2)} budget · ${utilPct}% used` : 'no budget set'}
+              icon="$"
+              tone="green"
+            />
+            <StatTile
+              label="Pending Approvals"
+              value={approvals}
+              sub={approvals > 0 ? 'Awaiting review' : 'All clear'}
+              icon="◉"
+              tone={approvals > 0 ? 'red' : ''}
+            />
+          </div>
+        )
+      })()}
 
       {/* Charts Row — below stat tiles */}
       <div className="dash-charts-row">
         <ChartCard title="Run Activity" subtitle="Last 14 days">
           <Sparkline data={runData} color="var(--green)" height={80} />
           <div className="dash-chart-xlabels">
-            <span>4/15</span>
-            <span className="ml-auto">4/28</span>
+            <span>{chartData.labelStart}</span>
+            <span className="ml-auto">{chartData.labelEnd}</span>
           </div>
         </ChartCard>
 
@@ -596,13 +707,13 @@ export default function MissionControl({ agents, onOpenAgent, loading, error, la
         <ChartCard title="Success Rate" subtitle="Last 14 days">
           <Sparkline data={successRateData} color="var(--green)" height={80} />
           <div className="dash-chart-xlabels">
-            <span>4/15</span>
-            <span className="ml-auto">4/28</span>
+            <span>{chartData.labelStart}</span>
+            <span className="ml-auto">{chartData.labelEnd}</span>
           </div>
         </ChartCard>
       </div>
 
-      {/* Active Agents — latest 4 issues with assigned agents */}
+      {/* Active Agents — latest 8 issues */}
       <div className="mb-6">
         <h3 className="dash-section-title" style={{ marginBottom: 12 }}>Active Agents</h3>
         <div className="dash-active-agents-list">
@@ -617,13 +728,13 @@ export default function MissionControl({ agents, onOpenAgent, loading, error, la
             .map((issue) => {
               const agent = agents.find((ag) =>
                 ag.apiData?.id === issue.assigneeAgentId ||
-                ag.apiData?.uuid === issue.assigneeAgentId
+                ag.apiData?.uuid === issue.assigneeAgentId ||
+                AGENT_UUIDS[ag.id] === issue.assigneeAgentId
+              ) || agents.find((ag) =>
+                ag.apiData?.id === issue.createdByAgentId ||
+                ag.apiData?.uuid === issue.createdByAgentId ||
+                AGENT_UUIDS[ag.id] === issue.createdByAgentId
               )
-              if (!agent) return null
-              const color = COLORS[agent.id] || 'violet'
-              const rar = RARITY[agent.id] || { tier: 'SR', stars: 4 }
-              const img = getAgentImage(agent.id)
-              const online = isOnline(agent)
               const resolvedStatus = resolveIssueStatus(issue)
               const issueStatus = resolvedStatus.label
               const startedAt = issue.startedAt || issue.started_at || null
@@ -633,40 +744,67 @@ export default function MissionControl({ agents, onOpenAgent, loading, error, la
 
               return (
                 <div key={issue.id || identifier} className="dash-active-agent-row">
-                  {/* Agent Card */}
-                  <div
-                    className="mini-agent-card dash-active-agent-card"
-                    onClick={() => onOpenAgent(agent.id)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onOpenAgent(agent.id) }}
-                  >
-                    <div className={`mini-agent-grad ${color}`}>
-                      <div className="mini-agent-top">
-                        <div className="rarity">
-                          <span className="label">{rar.tier}</span>
-                          <StarRow n={rar.stars} />
+                  {/* Agent Card — or placeholder if unassigned */}
+                  {agent ? (
+                    (() => {
+                      const color = COLORS[agent.id] || 'violet'
+                      const rar = RARITY[agent.id] || { tier: 'SR', stars: 4 }
+                      const img = getAgentImage(agent.id)
+                      const online = isOnline(agent)
+                      return (
+                        <div
+                          className="mini-agent-card dash-active-agent-card"
+                          onClick={() => onOpenAgent(agent.id)}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onOpenAgent(agent.id) }}
+                        >
+                          <div className={`mini-agent-grad ${color}`}>
+                            <div className="mini-agent-top">
+                              <div className="rarity">
+                                <span className="label">{rar.tier}</span>
+                                <StarRow n={rar.stars} />
+                              </div>
+                              <div className={`live-pip ${online ? 'on' : 'off'}`} />
+                            </div>
+                            <div className="mini-agent-mid">
+                              {img ? (
+                                <img src={img} alt={agent.name} className="mini-agent-portrait-img" />
+                              ) : (
+                                <div className="mini-agent-initials">{initials(agent.name)}</div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="mini-agent-body">
+                            <h4>{agent.name}</h4>
+                            <div className="role">{agent.title}</div>
+                            <div className="mini-agent-meta">
+                              <span>Lv {agent.level}</span>
+                              <span>·</span>
+                              <span>{adapterLabel(agent.apiData?.adapterType)}</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className={`live-pip ${online ? 'on' : 'off'}`} />
+                      )
+                    })()
+                  ) : (
+                    <div className="mini-agent-card dash-active-agent-card dash-unassigned-card">
+                      <div className="mini-agent-grad violet">
+                        <div className="mini-agent-top">
+                          <div className="rarity">
+                            <span className="label">N/A</span>
+                          </div>
+                        </div>
+                        <div className="mini-agent-mid">
+                          <div className="mini-agent-initials">?</div>
+                        </div>
                       </div>
-                      <div className="mini-agent-mid">
-                        {img ? (
-                          <img src={img} alt={agent.name} className="mini-agent-portrait-img" />
-                        ) : (
-                          <div className="mini-agent-initials">{initials(agent.name)}</div>
-                        )}
+                      <div className="mini-agent-body">
+                        <h4>Unassigned</h4>
+                        <div className="role">No agent</div>
                       </div>
                     </div>
-                    <div className="mini-agent-body">
-                      <h4>{agent.name}</h4>
-                      <div className="role">{agent.title}</div>
-                      <div className="mini-agent-meta">
-                        <span>Lv {agent.level}</span>
-                        <span>·</span>
-                        <span>{adapterLabel(agent.apiData?.adapterType)}</span>
-                      </div>
-                    </div>
-                  </div>
+                  )}
 
                   {/* Issue Detail Box */}
                   <div className="dash-issue-detail-box clickable" onClick={() => setSelectedIssue(issue)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedIssue(issue) }}>

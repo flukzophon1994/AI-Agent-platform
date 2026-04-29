@@ -138,14 +138,34 @@ export async function fetchMissions() {
 }
 
 /**
- * Fetch the activity feed / event log.
- * (Paperclip does not expose this yet — returns empty array.)
+ * Fetch dashboard summary stats from Paperclip.
+ * GET /api/companies/{companyId}/dashboard
+ * Returns array with agents, tasks, costs, pendingApprovals, budgets.
  */
-export async function fetchActivityFeed(limit = 20) {
+export async function fetchDashboard() {
   try {
-    // Placeholder
-    return []
-  } catch {
+    const data = await apiFetch(`/api/companies/${API_CONFIG.companyId}/dashboard`)
+    // API returns an array — take the first item
+    if (Array.isArray(data) && data.length > 0) return data[0]
+    return data || null
+  } catch (err) {
+    console.warn('[agentService] fetchDashboard failed:', err.message)
+    return null
+  }
+}
+
+/**
+ * Fetch the activity feed / event log from Paperclip.
+ * GET /api/companies/{companyId}/activity
+ * Returns { value: ActivityItem[], Count: number }
+ */
+export async function fetchActivityFeed(limit = 100) {
+  try {
+    const data = await apiFetch(`/api/companies/${API_CONFIG.companyId}/activity`)
+    const items = Array.isArray(data?.value) ? data.value : Array.isArray(data) ? data : []
+    return limit > 0 ? items.slice(0, limit) : items
+  } catch (err) {
+    console.warn('[agentService] fetchActivityFeed failed:', err.message)
     return []
   }
 }
@@ -221,6 +241,56 @@ export async function fetchIssueDocuments(issueId) {
     console.warn('[agentService] fetchIssueDocuments failed:', err.message)
     return []
   }
+}
+
+/**
+ * Create a new issue via Paperclip API.
+ * POST /api/companies/{companyId}/issues
+ * @param {object} body — { title, description, assigneeAgentId, priority, status, projectId, goalId }
+ * @returns {object} created issue
+ */
+export async function createIssue(body) {
+  return apiFetch(`/api/companies/${API_CONFIG.companyId}/issues`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+/**
+ * Fetch projects list from Paperclip.
+ * GET /api/companies/{companyId}/projects
+ * Returns array of { id, name, color, status, goalId, ... }
+ */
+export async function fetchProjects() {
+  try {
+    const data = await apiFetch(`/api/companies/${API_CONFIG.companyId}/projects`)
+    return Array.isArray(data) ? data : []
+  } catch (err) {
+    console.warn('[agentService] fetchProjects failed:', err.message)
+    return []
+  }
+}
+
+/**
+ * Upload an attachment to an issue.
+ * POST /api/companies/{companyId}/issues/{issueId}/attachments  (multipart/form-data)
+ * @param {string} issueId — Paperclip issue UUID
+ * @param {File} file — the file to upload
+ * @returns {object} attachment metadata
+ */
+export async function uploadAttachment(issueId, file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const url = `${API_CONFIG.baseUrl}/api/companies/${API_CONFIG.companyId}/issues/${issueId}/attachments`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${API_CONFIG.apiKey}`,
+    },
+    body: formData,
+  })
+  if (!res.ok) throw new Error(`Upload failed ${res.status}: ${await res.text()}`)
+  return res.json()
 }
 
 /**

@@ -11,21 +11,125 @@ function maskKey(key) {
 
 function MarkdownBlock({ text }) {
   if (!text) return <div className="inst-body">No instructions defined.</div>
+
   const lines = text.split('\n')
-  return (
-    <div className="inst-md">
-      {lines.map((line, i) => {
-        const trimmed = line.trim()
-        if (!trimmed) return <div key={i} style={{ height: 8 }} />
-        if (trimmed.startsWith('# ')) return <h4 key={i} className="md-h1">{trimmed.slice(2)}</h4>
-        if (trimmed.startsWith('## ')) return <h5 key={i} className="md-h2">{trimmed.slice(3)}</h5>
-        if (trimmed.startsWith('### ')) return <h6 key={i} className="md-h3">{trimmed.slice(4)}</h6>
-        if (trimmed.startsWith('- ')) return <div key={i} className="md-li">• {trimmed.slice(2)}</div>
-        if (trimmed.startsWith('**') && trimmed.endsWith('**')) return <div key={i} className="md-p"><strong>{trimmed.slice(2, -2)}</strong></div>
-        return <div key={i} className="md-p">{trimmed}</div>
-      })}
-    </div>
-  )
+
+  // ── Detect section headings ──────────────────────────────────────
+  // A line is a heading if:
+  //   • non-empty, not indented, not starting with - or ./
+  //   • previous line is blank (or it's right after the role block)
+  //   • length is short-ish (< 70 chars) OR it looks like a title
+  //   • next line is blank, indented, or starts with -
+  function isHeading(idx) {
+    const t = lines[idx]?.trim()
+    if (!t) return false
+    if (t.startsWith('#')) return true          // explicit markdown heading
+    if (t.startsWith('- ') || t.startsWith('./')) return false
+    if (t.startsWith('  ')) return false        // indented
+    // Previous line must be blank (or first content after role block)
+    const prev = idx > 0 ? lines[idx - 1]?.trim() : ''
+    if (prev !== '' && idx > 2) return false
+    // Must be reasonably short
+    if (t.length > 70) return false
+    // Next line should be blank, indented, bullet, or content (not another heading)
+    const next = idx < lines.length - 1 ? lines[idx + 1] : ''
+    const nextTrimmed = next?.trim() || ''
+    // Valid: next is blank, starts with space, starts with -, or is content
+    if (nextTrimmed === '' || next.startsWith('  ') || nextTrimmed.startsWith('- ') || nextTrimmed.startsWith('./')) return true
+    return false
+  }
+
+  // ── Render inline formatting (bold, code, arrows) ───────────────
+  function renderInline(raw) {
+    // Split by **bold** segments
+    const parts = raw.split(/(\*\*[^*]+\*\*)/g)
+    return parts.map((part, pi) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={pi}>{part.slice(2, -2)}</strong>
+      }
+      // Highlight → arrows
+      const arrowParts = part.split(/(→)/g)
+      return arrowParts.map((seg, si) => {
+        if (seg === '→') return <span key={`${pi}-${si}`} className="md-arrow">→</span>
+        return seg
+      })
+    })
+  }
+
+  // ── Determine line role ──────────────────────────────────────────
+  let isFirstContent = true
+  const rendered = []
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i]
+    const trimmed = raw.trim()
+
+    // Blank line → spacer
+    if (!trimmed) {
+      rendered.push(<div key={i} className="md-blank" />)
+      continue
+    }
+
+    // Explicit markdown headings
+    if (trimmed.startsWith('### ')) {
+      rendered.push(<h6 key={i} className="md-h3">{renderInline(trimmed.slice(4))}</h6>)
+      continue
+    }
+    if (trimmed.startsWith('## ')) {
+      rendered.push(<h5 key={i} className="md-h2">{renderInline(trimmed.slice(3))}</h5>)
+      continue
+    }
+    if (trimmed.startsWith('# ')) {
+      rendered.push(<h4 key={i} className="md-h1">{renderInline(trimmed.slice(2))}</h4>)
+      continue
+    }
+
+    // First non-blank content → role description
+    if (isFirstContent) {
+      isFirstContent = false
+      rendered.push(<div key={i} className="md-role">{renderInline(trimmed)}</div>)
+      continue
+    }
+
+    // Section heading (auto-detected)
+    if (isHeading(i)) {
+      rendered.push(<div key={i} className="md-section">{renderInline(trimmed)}</div>)
+      continue
+    }
+
+    // File reference (./path)
+    if (trimmed.startsWith('./')) {
+      rendered.push(<div key={i} className="md-file">{renderInline(trimmed)}</div>)
+      continue
+    }
+
+    // Bullet item
+    if (trimmed.startsWith('- ')) {
+      rendered.push(<div key={i} className="md-li">• {renderInline(trimmed.slice(2))}</div>)
+      continue
+    }
+
+    // Indented content (starts with 2+ spaces)
+    if (raw.startsWith('    ')) {
+      rendered.push(<div key={i} className="md-indent2">{renderInline(trimmed)}</div>)
+      continue
+    }
+    if (raw.startsWith('  ')) {
+      rendered.push(<div key={i} className="md-indent">{renderInline(trimmed)}</div>)
+      continue
+    }
+
+    // Bold-only line
+    if (trimmed.startsWith('**') && trimmed.endsWith('**') && !trimmed.slice(2, -2).includes('**')) {
+      rendered.push(<div key={i} className="md-p"><strong>{trimmed.slice(2, -2)}</strong></div>)
+      continue
+    }
+
+    // Regular paragraph
+    rendered.push(<div key={i} className="md-p">{renderInline(trimmed)}</div>)
+  }
+
+  return <div className="inst-md">{rendered}</div>
 }
 
 function PerfGraph({ series, color = '#b58aff' }) {

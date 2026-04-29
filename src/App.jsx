@@ -6,6 +6,8 @@ import AgentRoster from './AgentRoster'
 import Office from './Office'
 import AgentDetail from './Detail'
 import Issues from './Issues'
+import Memory from './Memory'
+import NewIssuePopup from './NewIssuePopup'
 
 const TWEAK_DEFAULTS = {
   scanlines: true,
@@ -44,7 +46,7 @@ function pathToView(pathname) {
 
 /* ── Sidebar ────────────────────────────────────────────────────────── */
 
-function Sidebar({ view, goTo, agentCount, inProgressCount }) {
+function Sidebar({ view, goTo, agentCount, inProgressCount, onNewIssue }) {
   const NavItem = ({ id, icon, label, badge }) => {
     const isActive = view === id
     return (
@@ -81,6 +83,10 @@ function Sidebar({ view, goTo, agentCount, inProgressCount }) {
       <nav aria-label="Operations">
         <div className="nav-section">
           <div className="nav-heading">Operations</div>
+          <button className="nav-item new-issue-btn" onClick={onNewIssue} title="Create a new issue">
+            <span className="ico" aria-hidden="true">⊕</span>
+            <span>New Issue</span>
+          </button>
           <NavItem id="missions" icon="▷" label="Issues" badge={inProgressCount > 0 ? inProgressCount : null} />
           <NavItem id="office" icon="✦" label="The Tower" />
           <NavItem id="memory" icon="◌" label="Memory Graph" />
@@ -146,6 +152,7 @@ export default function App() {
   const [activeId, setActiveId] = useState(initial.activeId)
   const [tweaksOpen, setTweaksOpen] = useState(false)
   const [tweaks, setTweaks] = useState(TWEAK_DEFAULTS)
+  const [newIssueOpen, setNewIssueOpen] = useState(false)
 
   // Realtime polling from Paperclip API (every 3s)
   const { agents, loading, error, lastUpdated, refresh } = useAgents(3000)
@@ -224,7 +231,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <Sidebar view={sidebarActive} goTo={goTo} agentCount={agents.length} inProgressCount={inProgressCount} />
+      <Sidebar view={sidebarActive} goTo={goTo} agentCount={agents.length} inProgressCount={inProgressCount} onNewIssue={() => setNewIssueOpen(true)} />
 
       <ErrorBoundary>
         <main>
@@ -249,6 +256,7 @@ export default function App() {
             />
           )}
           {view === 'missions' && <Issues />}
+          {view === 'memory' && <Memory />}
           {view === 'office' && (
             <Office
               agents={agents}
@@ -296,6 +304,17 @@ export default function App() {
             <input type="range" min="0.5" max="3" step="0.5" value={tweaks.patrolSpeed} onChange={(e) => setTweak('patrolSpeed', +e.target.value)} />
           </div>
         </div>
+      )}
+
+      {newIssueOpen && (
+        <NewIssuePopup
+          onClose={() => setNewIssueOpen(false)}
+          onCreated={() => {
+            // Refresh issues count after creating
+            setInProgressCount((prev) => prev)
+            // Optionally navigate to issues list
+          }}
+        />
       )}
     </div>
   )
