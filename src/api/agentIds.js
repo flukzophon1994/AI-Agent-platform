@@ -22,6 +22,9 @@ const AGENT_UUIDS = {
   samurai:       '1db8f270-fd00-4af7-a740-5eec81dbf021',
   turtle:        'd36259ad-391c-4ce2-9b3e-7bcc0950e844',
   kield01:       'ea1b891d-e2ec-4759-a617-2d9b160e8c0d',
+  evilsnakelord: '',
+  lordofdeath:   '',
+  atroce:        '',
 }
 
 /** URL keys as defined in Paperclip (slug-style identifiers) */
@@ -39,6 +42,9 @@ const AGENT_URL_KEYS = {
   samurai:       'samurai-specter-ops',
   turtle:        'turtle-general-admin',
   kield01:       'kiel-d-01-ui-ux-designer',
+  evilsnakelord: 'evil-snake-lord-cpo',
+  lordofdeath:   'lord-of-death-backend',
+  atroce:        'atroce-qa',
 }
 
 /** Full API display names (with role suffixes) */
@@ -56,6 +62,9 @@ const AGENT_API_NAMES = {
   samurai:       'Samurai Specter (Ops)',
   turtle:        'Turtle general (Admin)',
   kield01:       'Kiel D-01 (UI/UX designer)',
+  evilsnakelord: 'Evil Snake Lord (CPO)',
+  lordofdeath:   'Lord of Death (Backend)',
+  atroce:        'Atroce (QA)',
 }
 
 /**

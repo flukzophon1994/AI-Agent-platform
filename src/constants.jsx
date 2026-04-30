@@ -16,6 +16,9 @@ export const COLORS = {
   eddga: 'orange',
   samurai: 'crimson',
   turtle: 'forest',
+  evilsnakelord: 'emerald',
+  lordofdeath: 'slate',
+  atroce: 'rose',
 }
 
 export const RARITY = {
@@ -23,14 +26,18 @@ export const RARITY = {
   kafra: { tier: 'UR', stars: 6 },
   valkyrie: { tier: 'SSR', stars: 5 },
   thanatos: { tier: 'SSR', stars: 5 },
+  evilsnakelord: { tier: 'SSR', stars: 5 },
+  kield01: { tier: 'SR', stars: 4 },
   baphomet: { tier: 'SR', stars: 4 },
-  darklord: { tier: 'SR', stars: 4 },
-  amonra: { tier: 'SR', stars: 4 },
-  osiris: { tier: 'SR', stars: 4 },
+  lordofdeath: { tier: 'SR', stars: 4 },
+  atroce: { tier: 'SR', stars: 4 },
   doppelganger: { tier: 'SR', stars: 4 },
+  darklord: { tier: 'SR', stars: 4 },
+  osiris: { tier: 'SR', stars: 4 },
   eddga: { tier: 'SR', stars: 4 },
   samurai: { tier: 'SR', stars: 4 },
   turtle: { tier: 'SR', stars: 4 },
+  amonra: { tier: 'SR', stars: 4 },
 }
 
 export const STATUS_LABEL = {
@@ -52,6 +59,9 @@ export const RELATION_GRAD = {
   indigo: 'linear-gradient(155deg, #8a6cff, #5238b8)',
   orange: 'linear-gradient(155deg, #ff9a3a, #d4641a)',
   forest: 'linear-gradient(155deg, #5cd47a, #2d8a3e)',
+  emerald: 'linear-gradient(155deg, #34d399, #059669)',
+  slate: 'linear-gradient(155deg, #94a3b8, #475569)',
+  rose: 'linear-gradient(155deg, #fb7185, #be123c)',
 }
 
 export function initials(name) {

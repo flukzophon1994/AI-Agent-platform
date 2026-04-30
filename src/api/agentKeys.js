@@ -22,6 +22,9 @@ const DEFAULT_AGENT_KEYS = {
   eddga:       'pcp_8325c19881b608367e7c07311a1a2b7e8f72b84ebaecce0a',
   osiris:      'pcp_ba96c964b9c27f025e2ba4da4733eaf8db4c9d16480ef6d8',
   kield01:     'pcp_5103d7d854800011503daaeab6bef67eb073d8e5281e6e06',
+  evilsnakelord: 'pcp_fdb734dcfacd1befe5a117f490cdf494d31b6d60120b1897',
+  lordofdeath:   'pcp_9f14899630a893ce00c9fba8ea4ad11fdb98fbe70f0e64f7',
+  atroce:        'pcp_1a55dbecbe94fa33764ff30cc90489b92dfd6ab2fe8c7aba',
 }
 
 /** @returns {Record<string, string>} */

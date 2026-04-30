@@ -22,6 +22,9 @@ import eddgaMd          from './instructions/eddga/AGENTS.md?raw'
 import samuraiMd        from './instructions/samurai/AGENTS.md?raw'
 import turtleMd        from './instructions/turtle/AGENTS.md?raw'
 import kield01Md       from './instructions/kield01/AGENTS.md?raw'
+import evilsnakelordMd from './instructions/Evilsnakelord/AGENTS.md?raw'
+import lordofdeathMd   from './instructions/Lordofdeath/AGENTS.md?raw'
+import atroceMd        from './instructions/Atroce/AGENTS.md?raw'
 
 export const INSTRUCTIONS = {
   kafra:         kafraMd,
@@ -37,6 +40,9 @@ export const INSTRUCTIONS = {
   samurai:       samuraiMd,
   turtle:        turtleMd,
   kield01:       kield01Md,
+  evilsnakelord: evilsnakelordMd,
+  lordofdeath:   lordofdeathMd,
+  atroce:        atroceMd,
 }
 
 /**

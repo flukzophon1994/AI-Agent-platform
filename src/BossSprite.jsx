@@ -687,6 +687,52 @@ const PAL_KIEL_D01 = {
   A: '#94a3b8', // silver chest plate
 };
 
+// === ATROCE (QA Engineer) - werewolf beast ===
+const ATROCE = [
+  '.............KKKKKK..............',
+  '............KHHHHHHHK............',
+  '...........KHHHHHHHHHK...........',
+  '..........KHHSSSSSSHHK...........',
+  '.........KHSSSSSSSSSHK...........',
+  '.........KHSSRRRRSSSHK...........',
+  '........KHSSRWWRRWWRSKH..........',
+  '........KHSSRWKKKWRSKH...........',
+  '........KHSSRWKKKWRSKH...........',
+  '........KHSSRWWRRWWRSKH..........',
+  '.........KHSSRRRRSSSHK...........',
+  '..........KHSSFFFFSSHK...........',
+  '...........KHSFFFFFFHK...........',
+  '............KSSFFFFSK............',
+  '...........KKSSSSSSKK............',
+  '..........KKSSSSSSSSKK...........',
+  '.........KSSSSSSSSSSSK...........',
+  '........KSSSSCCCCCCSSSK..........',
+  '.......KSSSCCCCCCCCSSSK..........',
+  '......KSSCCCCCCCCCCCSSK..........',
+  '.....KSSCCCCCCCCCCCCCCSK.........',
+  '....KSSCCCCCCRRRRCCCCCCSK........',
+  '...KSSCCCCCCRRRRRRCCCCCCSK.......',
+  '..KSSCCCCCCRRRGGRRRCCCCCCSK......',
+  '..KSSCCCCCRRRGGGGRRRCCCCCSK......',
+  '...KSSCCCCRRRRGGGGRRRRCCCCSK.....',
+  '....KSSCCCRRRRRRRRRRRRCCCSK......',
+  '.....KSSCRRRRRRRRRRRRCCSK........',
+  '......KSSRRRRRRRRRRRRSK..........',
+  '.......KKRRRRRRRRRRKK............',
+  '........KKKRRRRRRKKK.............',
+  '..........KKKKKKKK...............',
+];
+const PAL_ATROCE = {
+  K: '#0a0309', // black outline
+  H: '#8b4513', // brown ear
+  S: '#a0522d', // sienna fur
+  R: '#3a1248', // dark armor
+  W: '#f5c563', // yellow eye
+  G: '#5fd66f', // green gem
+  C: '#6b3a1f', // dark fur
+  F: '#e84561', // red mouth
+};
+
 const SPRITES = {
   baphomet: { rows: DEMON_LORD, palette: PAL_DEMON },
   darklord: { rows: DARK_LORD, palette: PAL_DARK_LORD },
@@ -703,6 +749,7 @@ const SPRITES = {
   turtle: { rows: TURTLE, palette: PAL_TURTLE },
   satanmorroc: { rows: SATAN_MORROC, palette: PAL_SATAN },
   kield01: { rows: KIEL_D01, palette: PAL_KIEL_D01 },
+  atroce: { rows: ATROCE, palette: PAL_ATROCE },
 };
 
 function BossSprite({ which, scale = 4, glow = true }) {

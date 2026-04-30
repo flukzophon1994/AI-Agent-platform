@@ -128,16 +128,20 @@ function MiniTile({ label, value, sub, tone = '' }) {
 const AGENT_ORDER = [
   'kafra',
   'satanmorroc',
-  'thanatos',
   'valkyrie',
-  'amonra',
+  'thanatos',
+  'evilsnakelord',
+  'kield01',
   'baphomet',
+  'lordofdeath',
+  'atroce',
+  'doppelganger',
+  'darklord',
+  'osiris',
+  'eddga',
   'samurai',
   'turtle',
-  'darklord',
-  'doppelganger',
-  'eddga',
-  'osiris',
+  'amonra',
 ]
 
 function sortByOrder(list) {
@@ -227,7 +231,7 @@ export default function AgentRoster({ agents, onOpenAgent, loading, error, lastU
         <span className="meta">Real-time from Paperclip</span>
       </div>
       <div className="cap-grid">
-        {agents.map((a) => (
+        {sortByOrder(agents).map((a) => (
           <div key={a.id} className="cap-card">
             <div className="cap-top">
               <span className="cap-name">{a.name}</span>

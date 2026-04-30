@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { fetchIssueById, fetchIssueComments, fetchIssueDocuments } from './api/agentService'
+import { notifyAgentReply, wasIssueNotified } from './api/telegram'
 
 /* ── Issue status colors ────────────────────────────────────────────── */
 
@@ -35,11 +36,13 @@ export default function IssuePopup({ issue, onClose, agents }) {
   const [documents, setDocuments] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('description')
+  const telegramNotifiedRef = useRef(false)
 
   useEffect(() => {
     if (!issue?.id) return
     let cancelled = false
     setLoading(true)
+    telegramNotifiedRef.current = false
 
     Promise.all([
       fetchIssueById(issue.id),
@@ -51,6 +54,47 @@ export default function IssuePopup({ issue, onClose, agents }) {
         setComments(commentsData)
         setDocuments(documentsData)
         setLoading(false)
+
+        // ── Telegram notification on agent reply (deduplicated) ──
+        const hasAiContent = (Array.isArray(commentsData) && commentsData.length > 0) ||
+                             (Array.isArray(documentsData) && documentsData.length > 0)
+        if (hasAiContent && !telegramNotifiedRef.current && !wasIssueNotified(issue.id)) {
+          telegramNotifiedRef.current = true
+
+          // Build the AI response text
+          let responseText = ''
+          if (commentsData.length > 0) {
+            responseText = commentsData.map((c) => c.body || '').join('\n\n')
+          }
+          if (!responseText && documentsData.length > 0) {
+            responseText = documentsData.map((d) => d.body || '').join('\n\n')
+          }
+          // Fallback fields
+          if (!responseText && issueData) {
+            responseText = issueData.feedback || issueData.result || issueData.output ||
+                           issueData.response || issueData.answer || issueData.body || ''
+          }
+
+          if (responseText) {
+            const agentId = issueData?.assigneeAgentId || issue?.assigneeAgentId
+            const agentName = agents.find((a) =>
+              a.apiData?.id === agentId || a.apiData?.uuid === agentId
+            )?.name || 'Agent'
+            const identifier = issueData?.identifier || issue?.identifier ||
+                               issueData?.key || issue?.key || `#${issue.id || ''}`
+            const issueTitle = issueData?.title || issue?.title || 'Untitled'
+
+            notifyAgentReply({
+              issueId: issue.id,
+              issueTitle,
+              agentName,
+              aiResponse: responseText,
+              identifier,
+            }).catch((err) => {
+              console.warn('[telegram] Notification failed:', err.message)
+            })
+          }
+        }
       }
     }).catch(() => {
       if (!cancelled) setLoading(false)

@@ -17,6 +17,9 @@ const AGENT_IMAGES = {
   eddga:       new URL('./imageAgents/Eddga.png', import.meta.url).href,
   osiris:      new URL('./imageAgents/Osiris.png', import.meta.url).href,
   kield01:     new URL('./imageAgents/Kiel D-01.png', import.meta.url).href,
+  evilsnakelord: new URL('./imageAgents/Evil snake lord.png', import.meta.url).href,
+  lordofdeath: new URL('./imageAgents/Lord of death.png', import.meta.url).href,
+  atroce:      new URL('./imageAgents/Atroce.png', import.meta.url).href,
 }
 
 export function getAgentImage(agentId) {

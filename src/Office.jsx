@@ -22,9 +22,9 @@ const FLOORS = [
   {
     num: 'F3',
     label: 'Battle Hall',
-    sub: 'Revenue (W) · Engineering (E)',
+    sub: 'Revenue & Product (W) · Engineering (E)',
     wings: [
-      { side: 'west', label: 'WEST WING', ids: ['valkyrie'] },
+      { side: 'west', label: 'WEST WING', ids: ['valkyrie', 'evilsnakelord'] },
       { side: 'east', label: 'EAST WING', ids: ['thanatos'] },
     ],
     torchCount: 4,
@@ -35,7 +35,7 @@ const FLOORS = [
     label: 'Working Floor',
     sub: 'Strategy & Ops · 8 chiefs · East & West wings',
     wings: [
-      { side: 'west', label: 'WEST WING', ids: ['osiris', 'doppelganger', 'eddga', 'darklord', 'kield01'] },
+      { side: 'west', label: 'WEST WING', ids: ['osiris', 'doppelganger', 'eddga', 'darklord', 'kield01', 'lordofdeath', 'atroce'] },
       { side: 'east', label: 'EAST WING', ids: ['baphomet', 'amonra', 'samurai', 'turtle'] },
     ],
     torchCount: 6,
@@ -66,6 +66,9 @@ const LINES = {
   samurai: ['Honor in service.', 'Travel booked: SFO.', 'Reservation held.', 'Quiet step taken.', 'Bushido compels me.'],
   turtle: ['Slow is smooth.', 'Holding the line.', 'No tickets in queue.', 'SOP confirmed.', 'Standing post.'],
   kield01: ['Pixel-perfect.', 'Refactoring components...', 'Design system v2.', 'Accessibility audit done.', 'Prototype ready.'],
+  evilsnakelord: ['Roadmap updated.', 'Sprint planning...', 'Spec defined.', 'Delegating to team.', 'Release gate held.'],
+  lordofdeath: ['API deployed.', 'Schema migrated.', 'Auth flow complete.', 'LLM pipeline ready.', 'Backend nominal.'],
+  atroce: ['Test suite green.', 'Bug triage done.', 'Regression passed.', 'QA sign-off ready.', 'Release gate held.'],
 }
 
 /**
